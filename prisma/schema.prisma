@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model StockMaster {
+  id             Int      @id @default(autoincrement())
+  stockId        String   @unique
+  materialType   String
+  oemSupplier    String
+  make           String?
+  modelNumber    String
+  serialNumber   String   @unique
+  description    String?  @db.Text
+  category       String
+  receivedDate   DateTime
+  warrantyStatus String   @default("Active")
+  poNumber       String?
+  purchaseCost   Decimal  @default(0) @db.Decimal(12, 2)
+  currentStatus  String   @default("Available")
+  currentHolder  String   @default("Store")
+  location       String   @default("Main Store")
+  remarks        String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  movements StockMovement[]
+  receipt   MaterialReceipt?
+  issues    MaterialIssue[]
+  demos     DemoTracking[]
+  handovers CustomerHandover[]
+  repairs   RepairCase[]
+  oemReturns OEMReturn[]
+  sales     AssetSale[]
+
+  @@index([currentStatus])
+  @@index([category])
+  @@index([materialType])
+}
+
+model MaterialReceipt {
+  id                  Int         @id @default(autoincrement())
+  grnNumber           String      @unique
+  receivedDate        DateTime
+  supplierOem         String
+  materialDescription String
+  modelNumber         String
+  serialNumber        String      @unique
+  quantity            Int         @default(1)
+  materialType        String
+  receivedBy          String
+  poNumber            String?
+  remarks             String?     @db.Text
+  stockMasterId       Int         @unique
+  stockMaster         StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt           DateTime    @default(now())
+}
+
+model MaterialIssue {
+  id                  Int         @id @default(autoincrement())
+  issueNumber         String      @unique
+  issueDate           DateTime
+  serialNumber        String
+  materialDescription String
+  issuedTo            String
+  customerName        String?
+  purpose             String
+  expectedReturnDate  DateTime?
+  actualReturnDate    DateTime?
+  status              String      @default("Issued")
+  remarks             String?     @db.Text
+  stockMasterId       Int
+  stockMaster         StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([stockMasterId])
+  @@index([serialNumber])
+}
+
+model DemoTracking {
+  id                 Int         @id @default(autoincrement())
+  demoId             String      @unique
+  serialNumber       String
+  model              String
+  salesPerson        String
+  customer           String?
+  issueDate          DateTime
+  expectedReturnDate DateTime?
+  actualReturnDate   DateTime?
+  status             String      @default("Active")
+  remarks            String?     @db.Text
+  stockMasterId      Int
+  stockMaster        StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([stockMasterId])
+  @@index([status])
+}
+
+model CustomerHandover {
+  id                 Int         @id @default(autoincrement())
+  customerName       String
+  customerCompany    String?
+  serialNumber       String
+  handoverDate       DateTime
+  expectedReturnDate DateTime?
+  actualReturnDate   DateTime?
+  status             String      @default("Active")
+  remarks            String?     @db.Text
+  stockMasterId      Int
+  stockMaster        StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([stockMasterId])
+}
+
+model RepairCase {
+  id                    Int         @id @default(autoincrement())
+  repairId              String      @unique
+  serialNumber          String
+  customerName          String
+  complaint             String      @db.Text
+  receivedDate          DateTime
+  repairStartDate       DateTime?
+  repairCompletionDate  DateTime?
+  returnDate            DateTime?
+  status                String      @default("Received")
+  remarks               String?     @db.Text
+  stockMasterId         Int
+  stockMaster           StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@index([stockMasterId])
+  @@index([status])
+}
+
+model OEMReturn {
+  id            Int         @id @default(autoincrement())
+  returnId      String      @unique
+  oemName       String
+  serialNumber  String
+  returnDate    DateTime
+  reason        String      @db.Text
+  status        String      @default("Pending")
+  remarks       String?     @db.Text
+  stockMasterId Int
+  stockMaster   StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([stockMasterId])
+  @@index([status])
+}
+
+model AssetSale {
+  id            Int         @id @default(autoincrement())
+  invoiceNumber String      @unique
+  customer      String
+  serialNumber  String
+  saleDate      DateTime
+  amount        Decimal     @default(0) @db.Decimal(12, 2)
+  stockMasterId Int
+  stockMaster   StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([stockMasterId])
+}
+
+model StockMovement {
+  id            Int         @id @default(autoincrement())
+  movementId    String      @unique
+  serialNumber  String
+  date          DateTime    @default(now())
+  fromLocation  String
+  toLocation    String
+  movementType  String
+  user          String      @default("Admin")
+  remarks       String?     @db.Text
+  stockMasterId Int
+  stockMaster   StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([stockMasterId])
+  @@index([serialNumber])
+  @@index([date])
+}
