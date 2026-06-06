@@ -42,8 +42,14 @@ export default function SalesPage() {
       </div>
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Sales Management">
         <div className="grid grid-cols-2 gap-3">
-          {[{ k: "invoiceNumber", l: "Invoice Number" }, { k: "customer", l: "Customer *" }, { k: "serialNumber", l: "Serial Number *" }].map(({ k, l }) => (
-            <div key={k}><label className="label-field">{l}</label><input className="input-field" value={(form as Record<string, string>)[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} /></div>
+          {(
+            [
+              { k: "invoiceNumber" as const, l: "Invoice Number" },
+              { k: "customer" as const, l: "Customer *" },
+              { k: "serialNumber" as const, l: "Serial Number *" },
+            ] as const
+          ).map(({ k, l }) => (
+            <div key={k}><label className="label-field">{l}</label><input className="input-field" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} /></div>
           ))}
           <div><label className="label-field">Sale Date</label><input type="date" className="input-field" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} /></div>
           <div><label className="label-field">Amount (₹)</label><input type="number" className="input-field" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} /></div>

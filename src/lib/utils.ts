@@ -43,3 +43,11 @@ export function generateId(prefix: string) {
   const rand = Math.floor(Math.random() * 900 + 100);
   return `${prefix}-${ts}${rand}`;
 }
+
+export function generatePONumber() {
+  return generateId("PO");
+}
+
+export function generateServiceCode() {
+  return generateId("SRV");
+}

@@ -136,17 +136,19 @@ export default function StockPage() {
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editId ? "Edit Stock" : "Add Stock"} size="xl">
         <div className="grid grid-cols-3 gap-3">
-          {[
-            { k: "serialNumber", l: "Serial Number *" },
-            { k: "modelNumber", l: "Model Number *" },
-            { k: "oemSupplier", l: "OEM / Supplier *" },
-            { k: "make", l: "Make" },
-            { k: "poNumber", l: "PO Number" },
-            { k: "location", l: "Location" },
-          ].map(({ k, l }) => (
+          {(
+            [
+              { k: "serialNumber" as const, l: "Serial Number *" },
+              { k: "modelNumber" as const, l: "Model Number *" },
+              { k: "oemSupplier" as const, l: "OEM / Supplier *" },
+              { k: "make" as const, l: "Make" },
+              { k: "poNumber" as const, l: "PO Number" },
+              { k: "location" as const, l: "Location" },
+            ] as const
+          ).map(({ k, l }) => (
             <div key={k}>
               <label className="label-field">{l}</label>
-              <input className="input-field" value={(form as Record<string, string>)[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+              <input className="input-field" value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             </div>
           ))}
           <div>
