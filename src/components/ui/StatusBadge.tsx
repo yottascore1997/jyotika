@@ -22,6 +22,10 @@ const statusStyles: Record<string, string> = {
   Ready: "bg-cyan-50 text-cyan-700 ring-cyan-600/20",
   Dispatch: "bg-violet-50 text-violet-700 ring-violet-600/20",
   Cancelled: "bg-rose-50 text-rose-700 ring-rose-600/20",
+  "Tender Win": "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  "Technically Disqualified": "bg-orange-50 text-orange-700 ring-orange-600/20",
+  "Commercially Disqualified": "bg-amber-50 text-amber-700 ring-amber-600/20",
+  "Tender Canceled": "bg-rose-50 text-rose-700 ring-rose-600/20",
 };
 
 export default function StatusBadge({

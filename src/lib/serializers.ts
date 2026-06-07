@@ -281,3 +281,25 @@ export function serializePOAllocation(allocation: {
     updatedAt: allocation.updatedAt.toISOString(),
   };
 }
+
+export function serializeTender(tender: {
+  id: number;
+  organizationName: string;
+  location: string;
+  tenderBidNo: string;
+  tenderSubmittedDate: Date;
+  quotedProduct: string;
+  orderValue: unknown;
+  status: string;
+  statusAsOnDate: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...tender,
+    orderValue: toNumber(tender.orderValue),
+    tenderSubmittedDate: tender.tenderSubmittedDate.toISOString(),
+    createdAt: tender.createdAt.toISOString(),
+    updatedAt: tender.updatedAt.toISOString(),
+  };
+}

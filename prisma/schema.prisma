@@ -239,3 +239,21 @@ model StockMovement {
   @@index([serialNumber])
   @@index([date])
 }
+
+model Tender {
+  id                   Int      @id @default(autoincrement())
+  organizationName     String
+  location             String
+  tenderBidNo          String
+  tenderSubmittedDate  DateTime
+  quotedProduct        String
+  orderValue           Decimal  @default(0) @db.Decimal(12, 2)
+  status               String   @default("Tender Win")
+  statusAsOnDate       String   @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([organizationName])
+  @@index([tenderSubmittedDate])
+  @@index([status])
+}

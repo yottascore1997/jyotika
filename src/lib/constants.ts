@@ -83,6 +83,13 @@ export const PO_STOCK_TYPES = ["New Stock", "Demo Stock", "Refurbished", "Buybac
 
 export const PO_ALLOCATION_STATUSES = ["Reserved", "Sold"] as const;
 
+export const TENDER_STATUSES = [
+  "Tender Win",
+  "Technically Disqualified",
+  "Commercially Disqualified",
+  "Tender Canceled",
+] as const;
+
 export type StockStatus = (typeof STOCK_STATUSES)[number];
 export type StockHolder = (typeof STOCK_HOLDERS)[number];
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
