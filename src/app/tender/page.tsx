@@ -20,7 +20,16 @@ type Tender = {
   statusAsOnDate: string;
 };
 
-const emptyForm = () => ({
+const emptyForm = (): {
+  organizationName: string;
+  location: string;
+  tenderBidNo: string;
+  tenderSubmittedDate: string;
+  quotedProduct: string;
+  orderValue: number;
+  status: string;
+  statusAsOnDate: string;
+} => ({
   organizationName: "",
   location: "",
   tenderBidNo: "",
