@@ -1,5 +1,6 @@
 export const STOCK_STATUSES = [
   "Available",
+  "Reserved",
   "Issued",
   "Demo",
   "Repair",
@@ -42,6 +43,8 @@ export const MOVEMENT_TYPES = [
   "Repair Return",
   "Sale",
   "OEM Return",
+  "PO Reservation",
+  "PO Release",
 ] as const;
 
 export const DEMO_STATUSES = ["Active", "Returned", "Overdue"] as const;
@@ -66,6 +69,19 @@ export const CATEGORIES = [
 ] as const;
 
 export const WARRANTY_STATUSES = ["Active", "Expired", "Not Applicable"] as const;
+
+export const PO_ORDER_TYPES = [
+  "New Supply",
+  "Repair",
+  "Buyback",
+  "Replacement",
+] as const;
+
+export const PO_STATUSES = ["PO", "PI", "Ready", "Dispatch", "Closed", "Cancelled"] as const;
+
+export const PO_STOCK_TYPES = ["New Stock", "Demo Stock", "Refurbished", "Buyback"] as const;
+
+export const PO_ALLOCATION_STATUSES = ["Reserved", "Sold"] as const;
 
 export type StockStatus = (typeof STOCK_STATUSES)[number];
 export type StockHolder = (typeof STOCK_HOLDERS)[number];

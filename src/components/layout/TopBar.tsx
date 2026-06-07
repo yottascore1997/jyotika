@@ -7,6 +7,7 @@ import { useState } from "react";
 const titles: Record<string, string> = {
   "/": "Dashboard",
   "/stock": "Stock Master",
+  "/po": "PO Management",
   "/receipt": "Material Receipt",
   "/issue": "Material Issue",
   "/demo": "Demo Tracking",

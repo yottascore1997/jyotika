@@ -218,3 +218,66 @@ export function serializeSale(sale: {
     createdAt: sale.createdAt.toISOString(),
   };
 }
+
+export function serializePO(po: {
+  id: number;
+  poId: string;
+  clientName: string;
+  location: string;
+  poNumber: string;
+  poDate: Date;
+  orderType: string;
+  salesPerson: string;
+  itemDescription: string;
+  quantityOrdered: number;
+  unitValue: unknown;
+  totalPoValue: unknown;
+  advanceRequired: boolean;
+  advanceReceived: boolean;
+  expectedDeliveryDate: Date | null;
+  status: string;
+  remarks: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  serialAllocations?: Array<{
+    id: number;
+    poMasterId: number;
+    model: string;
+    serialNumber: string;
+    stockType: string;
+    status: string;
+    stockMasterId: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  _count?: { serialAllocations: number };
+}) {
+  return {
+    ...po,
+    unitValue: toNumber(po.unitValue),
+    totalPoValue: toNumber(po.totalPoValue),
+    poDate: po.poDate.toISOString(),
+    expectedDeliveryDate: po.expectedDeliveryDate?.toISOString() ?? null,
+    createdAt: po.createdAt.toISOString(),
+    updatedAt: po.updatedAt.toISOString(),
+    serialAllocations: po.serialAllocations?.map(serializePOAllocation),
+  };
+}
+
+export function serializePOAllocation(allocation: {
+  id: number;
+  poMasterId: number;
+  model: string;
+  serialNumber: string;
+  stockType: string;
+  status: string;
+  stockMasterId: number;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    ...allocation,
+    createdAt: allocation.createdAt.toISOString(),
+    updatedAt: allocation.updatedAt.toISOString(),
+  };
+}

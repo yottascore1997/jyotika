@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Package,
+  FileText,
   PackagePlus,
   PackageMinus,
   Presentation,
@@ -21,6 +22,7 @@ import {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/stock", label: "Stock Master", icon: Package },
+  { href: "/po", label: "PO Management", icon: FileText },
   { href: "/receipt", label: "Material Receipt", icon: PackagePlus, hidden: true },
   { href: "/issue", label: "Material Issue", icon: PackageMinus, hidden: true },
   { href: "/demo", label: "Demo Tracking", icon: Presentation, hidden: true },

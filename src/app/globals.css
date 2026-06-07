@@ -23,15 +23,19 @@
   }
 
   .table-header {
-    @apply bg-slate-200/80 px-5 py-3.5 text-left text-sm font-semibold uppercase tracking-wide text-slate-700;
+    @apply whitespace-nowrap bg-slate-100 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600;
   }
 
   .table-cell {
-    @apply px-5 py-4 text-base text-slate-800;
+    @apply whitespace-nowrap px-4 py-3.5 align-middle text-[15px] leading-normal text-slate-800;
   }
 
   .table-row {
-    @apply border-t border-slate-200/80 transition-colors hover:bg-slate-100/80;
+    @apply border-t border-slate-200/80 transition-colors even:bg-slate-50/40 hover:bg-blue-50/50;
+  }
+
+  .table-cell-wrap {
+    @apply max-w-[180px] truncate whitespace-nowrap px-4 py-3.5 align-middle text-[15px] leading-normal text-slate-800;
   }
 
   .label-field {

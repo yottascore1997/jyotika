@@ -36,6 +36,7 @@ model StockMaster {
   repairs   RepairCase[]
   oemReturns OEMReturn[]
   sales     AssetSale[]
+  poAllocations POSerialAllocation[]
 
   @@index([currentStatus])
   @@index([category])
@@ -172,6 +173,52 @@ model AssetSale {
   createdAt     DateTime    @default(now())
 
   @@index([stockMasterId])
+}
+
+model POMaster {
+  id                   Int      @id @default(autoincrement())
+  poId                 String   @unique
+  clientName           String
+  location             String
+  poNumber             String
+  poDate               DateTime
+  orderType            String
+  salesPerson          String
+  itemDescription      String
+  quantityOrdered      Int      @default(1)
+  unitValue            Decimal  @default(0) @db.Decimal(12, 2)
+  totalPoValue         Decimal  @default(0) @db.Decimal(12, 2)
+  advanceRequired      Boolean  @default(false)
+  advanceReceived      Boolean  @default(false)
+  expectedDeliveryDate DateTime?
+  status               String   @default("PO")
+  remarks              String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  serialAllocations POSerialAllocation[]
+
+  @@index([status])
+  @@index([clientName])
+}
+
+model POSerialAllocation {
+  id            Int         @id @default(autoincrement())
+  poMasterId    Int
+  poMaster      POMaster    @relation(fields: [poMasterId], references: [id], onDelete: Cascade)
+  model         String
+  serialNumber  String
+  stockType     String      @default("New Stock")
+  status        String      @default("Reserved")
+  stockMasterId Int
+  stockMaster   StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([poMasterId, serialNumber])
+  @@index([poMasterId])
+  @@index([serialNumber])
+  @@index([status])
 }
 
 model StockMovement {
