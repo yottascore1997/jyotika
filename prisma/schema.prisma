@@ -81,11 +81,24 @@ model StockMaster {
   oemReturns OEMReturn[]
   sales     AssetSale[]
   poAllocations POSerialAllocation[]
+  images         StockImage[]
 
   @@index([currentStatus])
   @@index([category])
   @@index([materialType])
   @@index([stockSetId])
+}
+
+model StockImage {
+  id            Int         @id @default(autoincrement())
+  stockMasterId Int
+  stockMaster   StockMaster @relation(fields: [stockMasterId], references: [id], onDelete: Cascade)
+  filePath      String
+  fileName      String
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@index([stockMasterId])
 }
 
 model MaterialReceipt {

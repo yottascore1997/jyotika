@@ -28,9 +28,32 @@ type StockRecord = {
   stockSetId: number | null;
   partRole: string | null;
   stockSet?: { setId: string; id: number } | null;
+  images?: Array<{
+    id: number;
+    filePath: string;
+    fileName: string;
+    sortOrder: number;
+    createdAt: Date;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 };
+
+export function serializeStockImage(image: {
+  id: number;
+  filePath: string;
+  fileName: string;
+  sortOrder: number;
+  createdAt: Date;
+}) {
+  return {
+    id: image.id,
+    url: image.filePath.startsWith("/") ? image.filePath : `/${image.filePath}`,
+    fileName: image.fileName,
+    sortOrder: image.sortOrder,
+    createdAt: image.createdAt.toISOString(),
+  };
+}
 
 export function serializeStock(stock: StockRecord) {
   return {
@@ -41,13 +64,14 @@ export function serializeStock(stock: StockRecord) {
     createdAt: stock.createdAt.toISOString(),
     updatedAt: stock.updatedAt.toISOString(),
     stockSet: stock.stockSet ?? null,
+    images: stock.images?.map(serializeStockImage) ?? [],
   };
 }
 
-type StockSetRecord = {
+export type StockSetRecord = {
   id: number;
   setId: string;
-  mainSerialNumber: string;
+  mainSerialNumber: string | null;
   modelNumber: string;
   make: string | null;
   oemSupplier: string;

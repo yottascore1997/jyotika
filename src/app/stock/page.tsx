@@ -5,6 +5,11 @@ import { Plus, Pencil, Trash2, Eye, ChevronDown, ChevronRight, Layers } from "lu
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
+import StockImageUpload, {
+  MAX_STOCK_IMAGES,
+  type PendingStockImage,
+  type StockImageRecord,
+} from "@/components/stock/StockImageUpload";
 import {
   STOCK_STATUSES,
   STOCK_HOLDERS,
@@ -43,6 +48,7 @@ type Stock = {
   workingCondition?: string;
   partRole?: string;
   stockSetId?: number;
+  images?: StockImageRecord[];
 };
 
 type StockSet = {
@@ -101,8 +107,8 @@ const sharedDefaults = {
   currentHolder: "Store",
   location: "Main Store",
   purchaseCost: 0,
-  purpose: INWARD_PURPOSES[0],
-  workingCondition: WORKING_CONDITIONS[0],
+  purpose: INWARD_PURPOSES[0] as string,
+  workingCondition: WORKING_CONDITIONS[0] as string,
   oemSupplier: "",
   make: "",
   modelNumber: "",
@@ -159,6 +165,39 @@ export default function StockPage() {
     createSetItem(),
     createSetItem(undefined, SET_PART_ROLES[1]),
   ]);
+  const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
+  const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
+
+  const resetImageState = () => {
+    setPendingImages((prev) => {
+      prev.forEach((image) => URL.revokeObjectURL(image.preview));
+      return [];
+    });
+    setExistingImages([]);
+    setRemovedImageIds([]);
+  };
+
+  const uploadStockImages = async (stockId: number) => {
+    for (const imageId of removedImageIds) {
+      const res = await fetch(`/api/stock/${stockId}/images?imageId=${imageId}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error((await res.json()).error || "Failed to remove image");
+      }
+    }
+
+    if (!pendingImages.length) return;
+
+    const formData = new FormData();
+    pendingImages.forEach((image) => formData.append("images", image.file));
+    const res = await fetch(`/api/stock/${stockId}/images`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error((await res.json()).error || "Failed to upload images");
+    }
+  };
 
   const load = async () => {
     const [standalone, allSets] = await Promise.all([
@@ -202,6 +241,7 @@ export default function StockPage() {
   const openAdd = (mode: "single" | "set") => {
     setEditId(null);
     setAddMode(mode);
+    resetImageState();
     const today = new Date().toISOString().split("T")[0];
     if (mode === "single") {
       setSingleForm({ ...emptySingle, receivedDate: today });
@@ -216,12 +256,19 @@ export default function StockPage() {
   const openEdit = (i: Stock) => {
     setEditId(i.id);
     setAddMode("single");
+    resetImageState();
     setSingleForm({
       ...i,
       receivedDate: toInputDate(i.receivedDate),
       commercialInvoiceDate: toInputDate(i.commercialInvoiceDate),
     });
+    setExistingImages(i.images || []);
     setModal(true);
+  };
+
+  const closeModal = () => {
+    resetImageState();
+    setModal(false);
   };
 
   const save = async () => {
@@ -231,7 +278,7 @@ export default function StockPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...completeSetForm, items: setItemRows }),
       });
-      if (res.ok) { setModal(false); load(); }
+      if (res.ok) { closeModal(); load(); }
       else alert((await res.json()).error);
       return;
     }
@@ -242,8 +289,38 @@ export default function StockPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(singleForm),
     });
-    if (res.ok) { setModal(false); load(); }
-    else alert((await res.json()).error);
+    if (!res.ok) {
+      alert((await res.json()).error);
+      return;
+    }
+
+    try {
+      const saved = await res.json();
+      await uploadStockImages(saved.id);
+      closeModal();
+      load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to save images");
+    }
+  };
+
+  const addPendingImages = (files: File[]) => {
+    const visibleExisting = existingImages.filter((image) => !removedImageIds.includes(image.id)).length;
+    const remaining = MAX_STOCK_IMAGES - visibleExisting - pendingImages.length;
+    const accepted = files.slice(0, remaining);
+    setPendingImages((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return next;
+    });
   };
 
   const deleteSet = async (setId: string) => {
@@ -554,6 +631,19 @@ export default function StockPage() {
             />
           </div>
         </div>
+
+        {!isSet && (
+          <div className="mt-5">
+            <StockImageUpload
+              existing={existingImages}
+              pending={pendingImages}
+              removedIds={removedImageIds}
+              onAdd={addPendingImages}
+              onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
+              onRemovePending={removePendingImage}
+            />
+          </div>
+        )}
       </>
     );
   };
@@ -570,8 +660,8 @@ export default function StockPage() {
         <Button onClick={() => openAdd("single")}>
           <Plus size={16} /> Add Stock
         </Button>
-        <Button variant="secondary" onClick={() => openAdd("set")}>
-          <Layers size={16} /> Add Complete Set
+        <Button onClick={() => openAdd("set")}>
+          <Layers size={16} /> Add Set
         </Button>
       </div>
 
@@ -587,19 +677,19 @@ export default function StockPage() {
           <tbody>
             {filteredSets.map((s) => (
               <Fragment key={`set-${s.id}`}>
-                <tr className="table-row bg-indigo-50/40">
-                  <td className="table-cell font-mono text-sm font-bold text-indigo-800">
+                <tr className="table-row bg-blue-50">
+                  <td className="table-cell font-mono text-sm font-bold text-blue-800">
                     {s.mainSerialNumber}
                   </td>
                   <td className="table-cell">
-                    <button onClick={() => toggleSet(s.id)} className="flex items-center gap-2 font-mono text-xs font-bold text-indigo-700">
+                    <button onClick={() => toggleSet(s.id)} className="flex items-center gap-2 font-mono text-xs font-bold text-blue-700">
                       {expandedSets.has(s.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       <Layers size={14} />
                       {s.setId}
                     </button>
                   </td>
                   <td className="table-cell font-medium">{s.modelNumber}</td>
-                  <td className="table-cell text-indigo-600">Complete Set</td>
+                  <td className="table-cell text-blue-600">Set</td>
                   <td className="table-cell">{s.items.length} items</td>
                   <td className="table-cell">{s.purpose || "—"}</td>
                   <td className="table-cell font-mono text-xs">{s.commercialInvoiceNo || "—"}</td>
@@ -680,13 +770,13 @@ export default function StockPage() {
 
       <Modal
         isOpen={modal}
-        onClose={() => setModal(false)}
-        title={editId ? "Edit Stock" : addMode === "set" ? "Add Complete Set" : "Add Stock"}
+        onClose={closeModal}
+        title={editId ? "Edit Stock" : addMode === "set" ? "Add Set" : "Add Stock"}
         size="xl"
       >
         {renderInwardFields(addMode)}
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button onClick={save}>{addMode === "set" ? "Save Set" : "Save"}</Button>
         </div>
       </Modal>
@@ -758,6 +848,24 @@ export default function StockPage() {
                 </div>
               ))}
             </div>
+            {viewItem.images && viewItem.images.length > 0 && (
+              <div className="mt-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Photos</p>
+                <div className="flex flex-wrap gap-3">
+                  {viewItem.images.map((image) => (
+                    <a
+                      key={image.id}
+                      href={image.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block h-28 w-28 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                    >
+                      <img src={image.url} alt={image.fileName} className="h-full w-full object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setViewItem(null)}>Close</Button>
               <Button onClick={() => { openEdit(viewItem); setViewItem(null); }}>

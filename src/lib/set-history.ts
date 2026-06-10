@@ -1,42 +1,19 @@
-import { buildServiceHistory } from "@/lib/service-history";
-import { serializeStockSet } from "@/lib/serializers";
+import { buildServiceHistory, type StockWithHistory } from "@/lib/service-history";
+import { serializeStockSet, type StockSetRecord } from "@/lib/serializers";
 
-type StockSetWithItems = {
-  setId: string;
-  mainSerialNumber: string;
-  receivedDate: Date;
-  oemSupplier: string;
-  currentStatus: string;
-  items: Array<{
-    serialNumber: string;
-    partRole: string | null;
-    stockId: string;
-    receivedDate: Date;
-    location: string;
-    receipt: unknown;
-    issues: unknown[];
-    demos: unknown[];
-    handovers: unknown[];
-    repairs: unknown[];
-    oemReturns: unknown[];
-    sales: unknown[];
-    poAllocations: unknown[];
-  }>;
-};
-
-export function buildSetHistory(stockSet: StockSetWithItems) {
+export function buildSetHistory(stockSet: StockSetRecord) {
   const history = [
     {
       date: stockSet.receivedDate.toISOString(),
-      activity: "Inward (Complete Set)",
-      details: `${stockSet.items.length} item(s) in set — Main Serial: ${stockSet.mainSerialNumber}`,
+      activity: "Inward (Set)",
+      details: `${stockSet.items?.length ?? 0} item(s) in set — Main Serial: ${stockSet.mainSerialNumber || "—"}`,
       reference: stockSet.setId,
       party: stockSet.oemSupplier,
       category: "Set",
       status: stockSet.currentStatus,
     },
-    ...stockSet.items.flatMap((item) =>
-      buildServiceHistory(item as Parameters<typeof buildServiceHistory>[0]).map((entry) => ({
+    ...(stockSet.items ?? []).flatMap((item) =>
+      buildServiceHistory(item as unknown as StockWithHistory).map((entry) => ({
         ...entry,
         details: `[${item.partRole || "Item"} — ${item.serialNumber}] ${entry.details}`,
       }))
@@ -44,7 +21,7 @@ export function buildSetHistory(stockSet: StockSetWithItems) {
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return {
-    stockSet: serializeStockSet(stockSet as Parameters<typeof serializeStockSet>[0]),
+    stockSet: serializeStockSet(stockSet),
     history,
     totalEvents: history.length,
     displayStatus: stockSet.currentStatus,

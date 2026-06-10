@@ -8,7 +8,7 @@ export interface ServiceHistoryEntry {
   status: string;
 }
 
-type StockWithHistory = {
+export type StockWithHistory = {
   stockId: string;
   receivedDate: Date;
   location: string;

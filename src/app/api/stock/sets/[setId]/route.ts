@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { serializeStockSet } from "@/lib/serializers";
+import { deleteStockImageFile } from "@/lib/stock-images";
 
 type Params = { params: { setId: string } };
 
@@ -9,7 +10,12 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const setId = decodeURIComponent(params.setId);
     const stockSet = await prisma.stockSet.findUnique({
       where: { setId },
-      include: { items: { orderBy: { id: "asc" } } },
+      include: {
+        items: {
+          orderBy: { id: "asc" },
+          include: { images: { orderBy: { sortOrder: "asc" } } },
+        },
+      },
     });
 
     if (!stockSet) {
@@ -28,12 +34,16 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     const setId = decodeURIComponent(params.setId);
     const stockSet = await prisma.stockSet.findUnique({
       where: { setId },
-      include: { items: true },
+      include: { items: { include: { images: true } } },
     });
 
     if (!stockSet) {
       return NextResponse.json({ error: `Set ${setId} not found` }, { status: 404 });
     }
+
+    await Promise.all(
+      stockSet.items.flatMap((item) => item.images.map((image) => deleteStockImageFile(image.filePath)))
+    );
 
     await prisma.$transaction(async (tx) => {
       for (const item of stockSet.items) {

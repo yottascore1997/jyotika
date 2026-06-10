@@ -6,7 +6,12 @@ import { serializeStockSet } from "@/lib/serializers";
 export async function GET() {
   try {
     const sets = await prisma.stockSet.findMany({
-      include: { items: { orderBy: { id: "asc" } } },
+      include: {
+        items: {
+          orderBy: { id: "asc" },
+          include: { images: { orderBy: { sortOrder: "asc" } } },
+        },
+      },
       orderBy: { updatedAt: "desc" },
     });
     return NextResponse.json(sets.map(serializeStockSet));

@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
     const view = request.nextUrl.searchParams.get("view");
     const stock = await prisma.stockMaster.findMany({
       where: view === "all" ? undefined : { stockSetId: null },
-      include: view === "all" ? { stockSet: { select: { setId: true, id: true } } } : undefined,
+      include: {
+        images: { orderBy: { sortOrder: "asc" } },
+        ...(view === "all" ? { stockSet: { select: { setId: true, id: true } } } : {}),
+      },
       orderBy: { updatedAt: "desc" },
     });
     return NextResponse.json(stock.map(serializeStock));

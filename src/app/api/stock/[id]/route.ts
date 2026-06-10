@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { serializeStock } from "@/lib/serializers";
+import { deleteStockImageFile } from "@/lib/stock-images";
 
 type Params = { params: { id: string } };
 
@@ -32,6 +33,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     const stock = await prisma.stockMaster.update({
       where: { id },
+      include: { images: { orderBy: { sortOrder: "asc" } } },
       data: {
         ...(body.materialType !== undefined && { materialType: body.materialType }),
         ...(body.oemSupplier !== undefined && { oemSupplier: body.oemSupplier }),
@@ -74,10 +76,15 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Invalid stock ID" }, { status: 400 });
     }
 
-    const existing = await prisma.stockMaster.findUnique({ where: { id } });
+    const existing = await prisma.stockMaster.findUnique({
+      where: { id },
+      include: { images: true },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Stock not found" }, { status: 404 });
     }
+
+    await Promise.all(existing.images.map((image) => deleteStockImageFile(image.filePath)));
 
     await prisma.$transaction([
       prisma.stockMovement.deleteMany({ where: { stockMasterId: id } }),

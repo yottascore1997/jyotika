@@ -33,3 +33,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploaded stock images (keep folder structure)
+/public/uploads/**
+!/public/uploads/**/.gitkeep
