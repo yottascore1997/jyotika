@@ -76,6 +76,10 @@ export async function getStockBySerial(serialNumber: string) {
       repairs: { orderBy: { receivedDate: "desc" } },
       oemReturns: { orderBy: { returnDate: "desc" } },
       sales: { orderBy: { saleDate: "desc" } },
+      poAllocations: {
+        include: { poMaster: true },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
 }

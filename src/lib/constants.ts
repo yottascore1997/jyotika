@@ -45,10 +45,23 @@ export const MOVEMENT_TYPES = [
   "OEM Return",
   "PO Reservation",
   "PO Release",
+  "Service",
+  "Service Return",
 ] as const;
 
 export const DEMO_STATUSES = ["Active", "Returned", "Overdue"] as const;
 export const REPAIR_STATUSES = ["Received", "Under Repair", "Repaired", "Returned", "Closed"] as const;
+
+export const SERVICE_TYPES = [
+  "General Service",
+  "Installation",
+  "Maintenance",
+  "Calibration",
+  "Inspection",
+  "AMC Visit",
+] as const;
+
+export const SERVICE_STATUSES = ["Pending", "In Progress", "Completed", "Cancelled"] as const;
 export const OEM_RETURN_STATUSES = ["Pending", "Returned", "Closed"] as const;
 
 export const MATERIAL_TYPES = [
@@ -69,6 +82,28 @@ export const CATEGORIES = [
 ] as const;
 
 export const WARRANTY_STATUSES = ["Active", "Expired", "Not Applicable"] as const;
+
+export const INWARD_PURPOSES = [
+  "New Material",
+  "Replacement",
+  "Repair Return",
+  "Demo Return",
+  "Buyback",
+  "Refurbished",
+] as const;
+
+export const QUANTITY_UNITS = ["set", "pcs", "unit", "nos"] as const;
+
+export const WORKING_CONDITIONS = ["Working", "Not Working"] as const;
+
+export const SET_PART_ROLES = [
+  "Main Unit",
+  "Probe",
+  "Accessory",
+  "Cable",
+  "Controller",
+  "Other",
+] as const;
 
 export const PO_ORDER_TYPES = [
   "New Supply",

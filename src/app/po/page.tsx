@@ -95,7 +95,7 @@ export default function POPage() {
 
   const load = () => fetch("/api/po").then((r) => r.json()).then(setRows);
   const loadStock = () =>
-    fetch("/api/stock")
+    fetch("/api/stock?view=all")
       .then((r) => r.json())
       .then((items: StockOption[]) => setAvailableStock(items.filter((i) => i.currentStatus === "Available")));
 

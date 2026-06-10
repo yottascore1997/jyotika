@@ -119,6 +119,20 @@ export async function GET(_request: NextRequest, { params }: Params) {
       });
     }
 
+    for (const alloc of stock.poAllocations ?? []) {
+      timeline.push({
+        type: "PO Allocation",
+        date: alloc.poMaster.poDate.toISOString(),
+        title: `PO ${alloc.poMaster.poNumber} — ${alloc.status}`,
+        details: {
+          poNumber: alloc.poMaster.poNumber,
+          clientName: alloc.poMaster.clientName,
+          status: alloc.status,
+          stockType: alloc.stockType,
+        },
+      });
+    }
+
     for (const oemReturn of stock.oemReturns) {
       timeline.push({
         type: "OEM Return",

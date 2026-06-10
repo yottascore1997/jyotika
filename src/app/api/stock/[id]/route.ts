@@ -48,6 +48,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
         ...(body.currentHolder !== undefined && { currentHolder: body.currentHolder }),
         ...(body.location !== undefined && { location: body.location }),
         ...(body.remarks !== undefined && { remarks: body.remarks }),
+        ...(body.quantity !== undefined && { quantity: Number(body.quantity) }),
+        ...(body.quantityUnit !== undefined && { quantityUnit: body.quantityUnit }),
+        ...(body.purpose !== undefined && { purpose: body.purpose }),
+        ...(body.commercialInvoiceNo !== undefined && { commercialInvoiceNo: body.commercialInvoiceNo }),
+        ...(body.commercialInvoiceDate !== undefined && {
+          commercialInvoiceDate: body.commercialInvoiceDate ? new Date(body.commercialInvoiceDate) : null,
+        }),
+        ...(body.awbNumber !== undefined && { awbNumber: body.awbNumber }),
+        ...(body.workingCondition !== undefined && { workingCondition: body.workingCondition }),
       },
     });
 
@@ -76,6 +85,7 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
       prisma.demoTracking.deleteMany({ where: { stockMasterId: id } }),
       prisma.customerHandover.deleteMany({ where: { stockMasterId: id } }),
       prisma.repairCase.deleteMany({ where: { stockMasterId: id } }),
+      prisma.serviceRecord.deleteMany({ where: { stockMasterId: id } }),
       prisma.oEMReturn.deleteMany({ where: { stockMasterId: id } }),
       prisma.assetSale.deleteMany({ where: { stockMasterId: id } }),
       prisma.materialReceipt.deleteMany({ where: { stockMasterId: id } }),

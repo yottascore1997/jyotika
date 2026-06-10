@@ -3,9 +3,14 @@ import { prisma } from "@/lib/db";
 import { generateId } from "@/lib/stock-service";
 import { serializeStock } from "@/lib/serializers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const stock = await prisma.stockMaster.findMany({ orderBy: { updatedAt: "desc" } });
+    const view = request.nextUrl.searchParams.get("view");
+    const stock = await prisma.stockMaster.findMany({
+      where: view === "all" ? undefined : { stockSetId: null },
+      include: view === "all" ? { stockSet: { select: { setId: true, id: true } } } : undefined,
+      orderBy: { updatedAt: "desc" },
+    });
     return NextResponse.json(stock.map(serializeStock));
   } catch (error) {
     console.error("GET /api/stock:", error);
@@ -53,6 +58,15 @@ export async function POST(request: NextRequest) {
           currentHolder: body.currentHolder || "Store",
           location: body.location || "Main Store",
           remarks: body.remarks || null,
+          quantity: Number(body.quantity) || 1,
+          quantityUnit: body.quantityUnit || "set",
+          purpose: body.purpose || null,
+          commercialInvoiceNo: body.commercialInvoiceNo || null,
+          commercialInvoiceDate: body.commercialInvoiceDate
+            ? new Date(body.commercialInvoiceDate)
+            : null,
+          awbNumber: body.awbNumber || null,
+          workingCondition: body.workingCondition || null,
         },
       });
 

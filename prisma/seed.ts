@@ -7,6 +7,7 @@ async function main() {
   await prisma.assetSale.deleteMany();
   await prisma.oEMReturn.deleteMany();
   await prisma.repairCase.deleteMany();
+  await prisma.serviceRecord.deleteMany();
   await prisma.customerHandover.deleteMany();
   await prisma.demoTracking.deleteMany();
   await prisma.materialIssue.deleteMany();
@@ -126,6 +127,33 @@ async function main() {
       repairStartDate: new Date("2024-05-03"),
       status: "Under Repair",
       stockMasterId: stocks[2].id,
+    },
+  });
+
+  await prisma.serviceRecord.create({
+    data: {
+      serviceId: "SRV-001001",
+      serialNumber: "SN-DE-2024-001",
+      customerName: "ABC Industries",
+      serviceType: "Maintenance",
+      serviceDate: new Date("2024-06-01"),
+      completionDate: new Date("2024-06-02"),
+      status: "Completed",
+      description: "Annual preventive maintenance check",
+      stockMasterId: stocks[0].id,
+    },
+  });
+
+  await prisma.serviceRecord.create({
+    data: {
+      serviceId: "SRV-001002",
+      serialNumber: "SN-DE-2024-001",
+      customerName: "ABC Industries",
+      serviceType: "Inspection",
+      serviceDate: new Date("2024-09-15"),
+      status: "Pending",
+      description: "Quarterly inspection scheduled",
+      stockMasterId: stocks[0].id,
     },
   });
 

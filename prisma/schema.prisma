@@ -7,6 +7,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model StockSet {
+  id                    Int      @id @default(autoincrement())
+  setId                 String   @unique
+  mainSerialNumber      String?  @unique
+  modelNumber           String
+  make                  String?
+  oemSupplier           String
+  materialType          String
+  category              String
+  receivedDate          DateTime
+  warrantyStatus        String   @default("Active")
+  poNumber              String?
+  purchaseCost          Decimal  @default(0) @db.Decimal(12, 2)
+  currentStatus         String   @default("Available")
+  currentHolder         String   @default("Store")
+  location              String   @default("Main Store")
+  remarks               String?  @db.Text
+  quantity              Int      @default(1)
+  quantityUnit          String   @default("set")
+  purpose               String?
+  commercialInvoiceNo   String?
+  commercialInvoiceDate DateTime?
+  awbNumber             String?
+  workingCondition      String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  items StockMaster[]
+
+  @@index([currentStatus])
+  @@index([mainSerialNumber])
+}
+
 model StockMaster {
   id             Int      @id @default(autoincrement())
   stockId        String   @unique
@@ -25,6 +58,16 @@ model StockMaster {
   currentHolder  String   @default("Store")
   location       String   @default("Main Store")
   remarks        String?  @db.Text
+  quantity       Int      @default(1)
+  quantityUnit   String   @default("set")
+  purpose        String?
+  commercialInvoiceNo   String?
+  commercialInvoiceDate DateTime?
+  awbNumber      String?
+  workingCondition String?
+  stockSetId     Int?
+  stockSet       StockSet? @relation(fields: [stockSetId], references: [id], onDelete: Cascade)
+  partRole       String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -34,6 +77,7 @@ model StockMaster {
   demos     DemoTracking[]
   handovers CustomerHandover[]
   repairs   RepairCase[]
+  services  ServiceRecord[]
   oemReturns OEMReturn[]
   sales     AssetSale[]
   poAllocations POSerialAllocation[]
@@ -41,6 +85,7 @@ model StockMaster {
   @@index([currentStatus])
   @@index([category])
   @@index([materialType])
+  @@index([stockSetId])
 }
 
 model MaterialReceipt {
@@ -140,6 +185,27 @@ model RepairCase {
   updatedAt             DateTime    @updatedAt
 
   @@index([stockMasterId])
+  @@index([status])
+}
+
+model ServiceRecord {
+  id              Int         @id @default(autoincrement())
+  serviceId       String      @unique
+  serialNumber    String
+  customerName    String
+  serviceType     String
+  serviceDate     DateTime
+  completionDate  DateTime?
+  status          String      @default("Pending")
+  description     String?     @db.Text
+  remarks         String?     @db.Text
+  stockMasterId   Int
+  stockMaster     StockMaster @relation(fields: [stockMasterId], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([stockMasterId])
+  @@index([serialNumber])
   @@index([status])
 }
 

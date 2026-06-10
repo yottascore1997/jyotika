@@ -18,6 +18,16 @@ type StockRecord = {
   currentHolder: string;
   location: string;
   remarks: string | null;
+  quantity: number;
+  quantityUnit: string;
+  purpose: string | null;
+  commercialInvoiceNo: string | null;
+  commercialInvoiceDate: Date | null;
+  awbNumber: string | null;
+  workingCondition: string | null;
+  stockSetId: number | null;
+  partRole: string | null;
+  stockSet?: { setId: string; id: number } | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -27,8 +37,51 @@ export function serializeStock(stock: StockRecord) {
     ...stock,
     purchaseCost: toNumber(stock.purchaseCost),
     receivedDate: stock.receivedDate.toISOString(),
+    commercialInvoiceDate: stock.commercialInvoiceDate?.toISOString() ?? null,
     createdAt: stock.createdAt.toISOString(),
     updatedAt: stock.updatedAt.toISOString(),
+    stockSet: stock.stockSet ?? null,
+  };
+}
+
+type StockSetRecord = {
+  id: number;
+  setId: string;
+  mainSerialNumber: string;
+  modelNumber: string;
+  make: string | null;
+  oemSupplier: string;
+  materialType: string;
+  category: string;
+  receivedDate: Date;
+  warrantyStatus: string;
+  poNumber: string | null;
+  purchaseCost: unknown;
+  currentStatus: string;
+  currentHolder: string;
+  location: string;
+  remarks: string | null;
+  quantity: number;
+  quantityUnit: string;
+  purpose: string | null;
+  commercialInvoiceNo: string | null;
+  commercialInvoiceDate: Date | null;
+  awbNumber: string | null;
+  workingCondition: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  items?: StockRecord[];
+};
+
+export function serializeStockSet(set: StockSetRecord) {
+  return {
+    ...set,
+    purchaseCost: toNumber(set.purchaseCost),
+    receivedDate: set.receivedDate.toISOString(),
+    commercialInvoiceDate: set.commercialInvoiceDate?.toISOString() ?? null,
+    createdAt: set.createdAt.toISOString(),
+    updatedAt: set.updatedAt.toISOString(),
+    items: set.items?.map(serializeStock),
   };
 }
 
@@ -177,6 +230,35 @@ export function serializeRepair(repair: {
     returnDate: repair.returnDate?.toISOString() ?? null,
     createdAt: repair.createdAt.toISOString(),
     updatedAt: repair.updatedAt.toISOString(),
+  };
+}
+
+export function serializeService(service: {
+  id: number;
+  serviceId: string;
+  serialNumber: string;
+  customerName: string;
+  serviceType: string;
+  serviceDate: Date;
+  completionDate: Date | null;
+  status: string;
+  description: string | null;
+  remarks: string | null;
+  stockMasterId: number;
+  createdAt: Date;
+  updatedAt: Date;
+  stockMaster?: {
+    modelNumber: string;
+    make: string | null;
+    currentStatus: string;
+  };
+}) {
+  return {
+    ...service,
+    serviceDate: service.serviceDate.toISOString(),
+    completionDate: service.completionDate?.toISOString() ?? null,
+    createdAt: service.createdAt.toISOString(),
+    updatedAt: service.updatedAt.toISOString(),
   };
 }
 

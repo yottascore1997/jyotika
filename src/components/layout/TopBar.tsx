@@ -9,6 +9,7 @@ const titles: Record<string, string> = {
   "/stock": "Stock Master",
   "/po": "PO Management",
   "/tender": "Tender Management",
+  "/services": "Service History",
   "/receipt": "Material Receipt",
   "/issue": "Material Issue",
   "/demo": "Demo Tracking",
@@ -29,7 +30,7 @@ export default function TopBar() {
 
   const searchSerial = (e: React.FormEvent) => {
     e.preventDefault();
-    if (serial.trim()) router.push(`/traceability?serial=${encodeURIComponent(serial.trim())}`);
+    if (serial.trim()) router.push(`/services?serial=${encodeURIComponent(serial.trim())}`);
   };
 
   return (

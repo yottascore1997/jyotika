@@ -23,6 +23,7 @@ import {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/stock", label: "Stock Master", icon: Package },
+  { href: "/services", label: "Service History", icon: History },
   { href: "/po", label: "PO Management", icon: FileText },
   { href: "/tender", label: "Tender Management", icon: ClipboardList },
   { href: "/receipt", label: "Material Receipt", icon: PackagePlus, hidden: true },
