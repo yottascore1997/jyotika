@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { deleteTenderImageFile } from "@/lib/tender-images";
 import { serializeTender } from "@/lib/serializers";
 
 type Params = { params: { id: string } };
@@ -7,7 +8,10 @@ type Params = { params: { id: string } };
 export async function GET(_request: NextRequest, { params }: Params) {
   try {
     const id = Number(params.id);
-    const tender = await prisma.tender.findUnique({ where: { id } });
+    const tender = await prisma.tender.findUnique({
+      where: { id },
+      include: { images: { orderBy: { sortOrder: "asc" } } },
+    });
     if (!tender) {
       return NextResponse.json({ error: "Tender not found" }, { status: 404 });
     }
@@ -53,10 +57,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
 export async function DELETE(_request: NextRequest, { params }: Params) {
   try {
     const id = Number(params.id);
-    const existing = await prisma.tender.findUnique({ where: { id } });
+    const existing = await prisma.tender.findUnique({
+      where: { id },
+      include: { images: true },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Tender not found" }, { status: 404 });
     }
+
+    await Promise.all(existing.images.map((image) => deleteTenderImageFile(image.filePath)));
 
     await prisma.tender.delete({ where: { id } });
     return NextResponse.json({ success: true });

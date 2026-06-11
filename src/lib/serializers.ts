@@ -39,7 +39,7 @@ type StockRecord = {
   updatedAt: Date;
 };
 
-export function serializeStockImage(image: {
+export function serializeEntityImage(image: {
   id: number;
   filePath: string;
   fileName: string;
@@ -54,6 +54,8 @@ export function serializeStockImage(image: {
     createdAt: image.createdAt.toISOString(),
   };
 }
+
+export const serializeStockImage = serializeEntityImage;
 
 export function serializeStock(stock: StockRecord) {
   return {
@@ -345,6 +347,13 @@ export function serializePO(po: {
   remarks: string | null;
   createdAt: Date;
   updatedAt: Date;
+  images?: Array<{
+    id: number;
+    filePath: string;
+    fileName: string;
+    sortOrder: number;
+    createdAt: Date;
+  }>;
   serialAllocations?: Array<{
     id: number;
     poMasterId: number;
@@ -366,6 +375,7 @@ export function serializePO(po: {
     expectedDeliveryDate: po.expectedDeliveryDate?.toISOString() ?? null,
     createdAt: po.createdAt.toISOString(),
     updatedAt: po.updatedAt.toISOString(),
+    images: po.images?.map(serializeEntityImage) ?? [],
     serialAllocations: po.serialAllocations?.map(serializePOAllocation),
   };
 }
@@ -400,6 +410,13 @@ export function serializeTender(tender: {
   statusAsOnDate: string;
   createdAt: Date;
   updatedAt: Date;
+  images?: Array<{
+    id: number;
+    filePath: string;
+    fileName: string;
+    sortOrder: number;
+    createdAt: Date;
+  }>;
 }) {
   return {
     ...tender,
@@ -407,5 +424,6 @@ export function serializeTender(tender: {
     tenderSubmittedDate: tender.tenderSubmittedDate.toISOString(),
     createdAt: tender.createdAt.toISOString(),
     updatedAt: tender.updatedAt.toISOString(),
+    images: tender.images?.map(serializeEntityImage) ?? [],
   };
 }

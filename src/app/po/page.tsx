@@ -5,6 +5,11 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X } from "lucide-r
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
+import StockImageUpload, {
+  MAX_STOCK_IMAGES,
+  type PendingStockImage,
+  type StockImageRecord,
+} from "@/components/stock/StockImageUpload";
 import { PO_ORDER_TYPES, PO_STATUSES } from "@/lib/constants";
 import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
 
@@ -36,6 +41,7 @@ type POMaster = {
   status: string;
   remarks: string | null;
   serialAllocations?: POAllocation[];
+  images?: StockImageRecord[];
 };
 
 type StockOption = {
@@ -92,12 +98,59 @@ export default function POPage() {
   const [pickSerial, setPickSerial] = useState("");
   const [addSerial, setAddSerial] = useState("");
   const [saving, setSaving] = useState(false);
+  const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
+  const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
 
-  const load = () => fetch("/api/po").then((r) => r.json()).then(setRows);
-  const loadStock = () =>
-    fetch("/api/stock?view=all")
-      .then((r) => r.json())
-      .then((items: StockOption[]) => setAvailableStock(items.filter((i) => i.currentStatus === "Available")));
+  const resetImageState = () => {
+    setPendingImages((prev) => {
+      prev.forEach((image) => URL.revokeObjectURL(image.preview));
+      return [];
+    });
+    setExistingImages([]);
+    setRemovedImageIds([]);
+  };
+
+  const uploadPoImages = async (poId: number) => {
+    for (const imageId of removedImageIds) {
+      const res = await fetch(`/api/po/${poId}/images?imageId=${imageId}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error((await res.json()).error || "Failed to remove image");
+      }
+    }
+
+    if (!pendingImages.length) return;
+
+    const formData = new FormData();
+    pendingImages.forEach((image) => formData.append("images", image.file));
+    const res = await fetch(`/api/po/${poId}/images`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error((await res.json()).error || "Failed to upload images");
+    }
+  };
+
+  const load = async () => {
+    const res = await fetch("/api/po");
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      console.error("Failed to load PO records:", data?.error || data);
+      setRows([]);
+      return;
+    }
+    setRows(data);
+  };
+  const loadStock = async () => {
+    const res = await fetch("/api/stock?view=all");
+    const items = await res.json();
+    if (!Array.isArray(items)) {
+      setAvailableStock([]);
+      return;
+    }
+    setAvailableStock(items.filter((i) => i.currentStatus === "Available"));
+  };
 
   useEffect(() => {
     load();
@@ -150,21 +203,54 @@ export default function POPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
+      if (!res.ok) {
+        alert((await res.json()).error);
+        return;
+      }
+
+      try {
+        const saved = await res.json();
+        await uploadPoImages(saved.id);
         setModal(false);
+        resetImageState();
         setSelectedStocks([]);
         load();
         loadStock();
-      } else {
-        alert((await res.json()).error);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to save images");
       }
     } finally {
       setSaving(false);
     }
   };
 
+  const addPendingImages = (files: File[]) => {
+    const visibleExisting = existingImages.filter((image) => !removedImageIds.includes(image.id)).length;
+    const remaining = MAX_STOCK_IMAGES - visibleExisting - pendingImages.length;
+    const accepted = files.slice(0, remaining);
+    setPendingImages((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return next;
+    });
+  };
+
+  const closeModal = () => {
+    resetImageState();
+    setModal(false);
+  };
+
   const openCreate = () => {
     setEditId(null);
+    resetImageState();
     setForm(emptyForm());
     setSelectedStocks([]);
     setPickSerial("");
@@ -173,6 +259,8 @@ export default function POPage() {
 
   const openEdit = (po: POMaster) => {
     setEditId(po.id);
+    resetImageState();
+    setExistingImages(po.images || []);
     setForm({
       clientName: po.clientName,
       location: po.location,
@@ -371,7 +459,7 @@ export default function POPage() {
         </table>
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title={editId ? "Edit PO" : "Create PO from Stock"} size="xl">
+      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit PO" : "Create PO from Stock"} size="xl">
         {!editId && (
           <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
             <p className="mb-3 text-sm font-bold text-slate-800">Step 1 — Stock Master se Serial Select karein *</p>
@@ -483,8 +571,18 @@ export default function POPage() {
             <textarea className="input-field min-h-[80px]" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
           </div>
         </div>
+        <div className="mt-5">
+          <StockImageUpload
+            existing={existingImages}
+            pending={pendingImages}
+            removedIds={removedImageIds}
+            onAdd={addPendingImages}
+            onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
+            onRemovePending={removePendingImage}
+          />
+        </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button onClick={save} disabled={saving || (!editId && selectedStocks.length === 0)}>
             {saving ? "Saving..." : editId ? "Update PO" : "Create PO & Reserve Stock"}
           </Button>

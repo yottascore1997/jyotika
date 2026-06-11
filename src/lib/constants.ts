@@ -3,12 +3,33 @@ export const STOCK_STATUSES = [
   "Reserved",
   "Issued",
   "Demo",
+  "Sample",
   "Repair",
+  "Repaired – Awaiting Dispatch",
+  "DOA (Dead on Arrival)",
   "Sold",
   "Returned To OEM",
   "Customer Trial",
   "Calibration",
   "Scrapped",
+] as const;
+
+/** Status options when adding inward stock (Add Stock form). */
+export const INWARD_STOCK_STATUSES = [
+  { value: "Available", description: "In stock and ready to use." },
+  { value: "Reserved", description: "Kept aside for a specific purpose." },
+  { value: "Demo", description: "Used for demonstrations." },
+  { value: "Sample", description: "Sample unit." },
+  { value: "Customer Trial", description: "Sent to a customer for evaluation." },
+  {
+    value: "Repaired – Awaiting Dispatch",
+    description:
+      "Repaired material received back and waiting to be dispatched to the customer.",
+  },
+  {
+    value: "DOA (Dead on Arrival)",
+    description: "Material found defective upon receipt.",
+  },
 ] as const;
 
 export const STOCK_HOLDERS = [
@@ -94,7 +115,7 @@ export const INWARD_PURPOSES = [
 
 export const QUANTITY_UNITS = ["set", "pcs", "unit", "nos"] as const;
 
-export const WORKING_CONDITIONS = ["Working", "Not Working"] as const;
+export const WORKING_CONDITIONS = ["Working", "Non-Working", "Under Inspection"] as const;
 
 export const SET_PART_ROLES = [
   "Main Unit",

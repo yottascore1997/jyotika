@@ -8,6 +8,7 @@ export async function GET() {
     const rows = await prisma.pOMaster.findMany({
       orderBy: { poDate: "desc" },
       include: {
+        images: { orderBy: { sortOrder: "asc" } },
         serialAllocations: true,
         _count: { select: { serialAllocations: true } },
       },

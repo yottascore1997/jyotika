@@ -5,6 +5,11 @@ import { Plus, Pencil, Trash2, Eye, Trophy, XCircle, Ban, FileX } from "lucide-r
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
+import StockImageUpload, {
+  MAX_STOCK_IMAGES,
+  type PendingStockImage,
+  type StockImageRecord,
+} from "@/components/stock/StockImageUpload";
 import { TENDER_STATUSES } from "@/lib/constants";
 import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
 
@@ -18,6 +23,7 @@ type Tender = {
   orderValue: number;
   status: string;
   statusAsOnDate: string;
+  images?: StockImageRecord[];
 };
 
 const emptyForm = (): {
@@ -54,8 +60,50 @@ export default function TenderPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
+  const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
+  const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
 
-  const load = () => fetch("/api/tenders").then((r) => r.json()).then(setRows);
+  const resetImageState = () => {
+    setPendingImages((prev) => {
+      prev.forEach((image) => URL.revokeObjectURL(image.preview));
+      return [];
+    });
+    setExistingImages([]);
+    setRemovedImageIds([]);
+  };
+
+  const uploadTenderImages = async (tenderId: number) => {
+    for (const imageId of removedImageIds) {
+      const res = await fetch(`/api/tenders/${tenderId}/images?imageId=${imageId}`, { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error((await res.json()).error || "Failed to remove image");
+      }
+    }
+
+    if (!pendingImages.length) return;
+
+    const formData = new FormData();
+    pendingImages.forEach((image) => formData.append("images", image.file));
+    const res = await fetch(`/api/tenders/${tenderId}/images`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error((await res.json()).error || "Failed to upload images");
+    }
+  };
+
+  const load = async () => {
+    const res = await fetch("/api/tenders");
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      console.error("Failed to load tenders:", data?.error || data);
+      setRows([]);
+      return;
+    }
+    setRows(data);
+  };
   useEffect(() => { load(); }, []);
 
   const statusCounts = useMemo(() => {
@@ -67,14 +115,41 @@ export default function TenderPage() {
     return counts;
   }, [rows]);
 
+  const addPendingImages = (files: File[]) => {
+    const visibleExisting = existingImages.filter((image) => !removedImageIds.includes(image.id)).length;
+    const remaining = MAX_STOCK_IMAGES - visibleExisting - pendingImages.length;
+    const accepted = files.slice(0, remaining);
+    setPendingImages((prev) => [
+      ...prev,
+      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return next;
+    });
+  };
+
+  const closeModal = () => {
+    resetImageState();
+    setModal(false);
+  };
+
   const openCreate = () => {
     setEditId(null);
+    resetImageState();
     setForm(emptyForm());
     setModal(true);
   };
 
   const openEdit = (row: Tender) => {
     setEditId(row.id);
+    resetImageState();
+    setExistingImages(row.images || []);
     setForm({
       organizationName: row.organizationName,
       location: row.location,
@@ -103,11 +178,18 @@ export default function TenderPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) {
-        setModal(false);
-        load();
-      } else {
+      if (!res.ok) {
         alert((await res.json()).error);
+        return;
+      }
+
+      try {
+        const saved = await res.json();
+        await uploadTenderImages(saved.id);
+        closeModal();
+        load();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to save images");
       }
     } finally {
       setSaving(false);
@@ -195,7 +277,7 @@ export default function TenderPage() {
         </table>
       </div>
 
-      <Modal isOpen={modal} onClose={() => setModal(false)} title={editId ? "Edit Tender" : "Add Tender"} size="lg">
+      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit Tender" : "Add Tender"} size="lg">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label-field">Organization Name *</label>
@@ -237,8 +319,18 @@ export default function TenderPage() {
             />
           </div>
         </div>
+        <div className="mt-5">
+          <StockImageUpload
+            existing={existingImages}
+            pending={pendingImages}
+            removedIds={removedImageIds}
+            onAdd={addPendingImages}
+            onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
+            onRemovePending={removePendingImage}
+          />
+        </div>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button onClick={save} disabled={saving}>{saving ? "Saving..." : editId ? "Update" : "Save"}</Button>
         </div>
       </Modal>
@@ -269,6 +361,24 @@ export default function TenderPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status As On Date</p>
                 <p className="mt-1 whitespace-pre-wrap text-base text-slate-800">{viewItem.statusAsOnDate || "—"}</p>
               </div>
+              {viewItem.images && viewItem.images.length > 0 && (
+                <div className="col-span-2">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Photos</p>
+                  <div className="flex flex-wrap gap-3">
+                    {viewItem.images.map((image) => (
+                      <a
+                        key={image.id}
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block h-24 w-24 overflow-hidden rounded-lg border border-slate-200"
+                      >
+                        <img src={image.url} alt={image.fileName} className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setViewItem(null)}>Close</Button>

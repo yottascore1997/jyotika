@@ -11,7 +11,7 @@ import StockImageUpload, {
   type StockImageRecord,
 } from "@/components/stock/StockImageUpload";
 import {
-  STOCK_STATUSES,
+  INWARD_STOCK_STATUSES,
   STOCK_HOLDERS,
   MATERIAL_TYPES,
   CATEGORIES,
@@ -90,7 +90,7 @@ type SetItemForm = {
   remarks: string;
 };
 
-type CompleteSetForm = typeof sharedDefaults & {
+type CompleteSetForm = typeof setSharedDefaults & {
   mainSerialNumber: string;
   remarks: string;
   receivedDate: string;
@@ -107,11 +107,15 @@ const sharedDefaults = {
   currentHolder: "Store",
   location: "Main Store",
   purchaseCost: 0,
-  purpose: INWARD_PURPOSES[0] as string,
   workingCondition: WORKING_CONDITIONS[0] as string,
   oemSupplier: "",
   make: "",
   modelNumber: "",
+};
+
+const setSharedDefaults = {
+  ...sharedDefaults,
+  purpose: INWARD_PURPOSES[0] as string,
 };
 
 const emptySingle: Partial<Stock> = {
@@ -153,7 +157,7 @@ export default function StockPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [singleForm, setSingleForm] = useState<Partial<Stock>>(emptySingle);
   const [completeSetForm, setCompleteSetForm] = useState({
-    ...sharedDefaults,
+    ...setSharedDefaults,
     mainSerialNumber: "",
     remarks: "",
     receivedDate: "",
@@ -246,7 +250,7 @@ export default function StockPage() {
     if (mode === "single") {
       setSingleForm({ ...emptySingle, receivedDate: today });
     } else {
-      const setDefaults = { ...sharedDefaults, mainSerialNumber: "", remarks: "", receivedDate: today, commercialInvoiceDate: "", commercialInvoiceNo: "", awbNumber: "" };
+      const setDefaults = { ...setSharedDefaults, mainSerialNumber: "", remarks: "", receivedDate: today, commercialInvoiceDate: "", commercialInvoiceNo: "", awbNumber: "" };
       setCompleteSetForm(setDefaults);
       setSetItemRows([createSetItem(setDefaults), createSetItem(setDefaults, SET_PART_ROLES[1])]);
     }
@@ -347,6 +351,25 @@ export default function StockPage() {
     </div>
   );
 
+  const inwardStatusOptions = (currentStatus?: string) => {
+    const inwardValues = INWARD_STOCK_STATUSES.map((s) => s.value);
+    const extra =
+      currentStatus && !inwardValues.includes(currentStatus as (typeof inwardValues)[number])
+        ? [{ value: currentStatus, description: "" }]
+        : [];
+    return [...extra, ...INWARD_STOCK_STATUSES];
+  };
+
+  const renderStatusSelect = (value: string | undefined, onChange: (status: string) => void) => (
+    <select className="input-field" value={value || "Available"} onChange={(e) => onChange(e.target.value)}>
+      {inwardStatusOptions(value).map((s) => (
+        <option key={s.value} value={s.value}>
+          {s.description ? `${s.value} – ${s.description}` : s.value}
+        </option>
+      ))}
+    </select>
+  );
+
   const setField = (k: string, label: string, opts?: { type?: string }) => (
     <div key={k}>
       <label className="label-field">{label}</label>
@@ -396,18 +419,10 @@ export default function StockPage() {
           )}
           {!isSet && field("serialNumber", "Serial Number *")}
           {!isSet && (
-            <>
-              <div>
-                <label className="label-field">Quantity</label>
-                <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
-              </div>
-              <div>
-                <label className="label-field">Purpose</label>
-                <select className="input-field" value={singleForm.purpose || INWARD_PURPOSES[0]} onChange={(e) => setSingleForm({ ...singleForm, purpose: e.target.value })}>
-                  {INWARD_PURPOSES.map((p) => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-            </>
+            <div>
+              <label className="label-field">Quantity</label>
+              <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
+            </div>
           )}
           {isSet && (
             <div>
@@ -501,9 +516,7 @@ export default function StockPage() {
                       </div>
                       <div>
                         <label className="label-field">Status</label>
-                        <select className="input-field" value={item.currentStatus} onChange={(e) => updateItem({ currentStatus: e.target.value })}>
-                          {STOCK_STATUSES.map((s) => <option key={s}>{s}</option>)}
-                        </select>
+                        {renderStatusSelect(item.currentStatus, (currentStatus) => updateItem({ currentStatus }))}
                       </div>
                       <div>
                         <label className="label-field">OEM / Supplier *</label>
@@ -526,7 +539,7 @@ export default function StockPage() {
                         <input className="input-field" value={item.location} onChange={(e) => updateItem({ location: e.target.value })} />
                       </div>
                       <div>
-                        <label className="label-field">Purchase Cost ($)</label>
+                        <label className="label-field">Purchase Cost - US ($)</label>
                         <input type="number" className="input-field" value={item.purchaseCost} onChange={(e) => updateItem({ purchaseCost: Number(e.target.value) })} />
                       </div>
                       <div className="col-span-3">
@@ -582,13 +595,10 @@ export default function StockPage() {
           )}
           <div>
             <label className="label-field">Status</label>
-            <select
-              className="input-field"
-              value={isSet ? completeSetForm.currentStatus : singleForm.currentStatus}
-              onChange={(e) => update({ currentStatus: e.target.value })}
-            >
-              {STOCK_STATUSES.map((s) => <option key={s}>{s}</option>)}
-            </select>
+            {renderStatusSelect(
+              isSet ? completeSetForm.currentStatus : singleForm.currentStatus,
+              (currentStatus) => update({ currentStatus })
+            )}
           </div>
           {isSet ? setField("oemSupplier", "OEM / Supplier *") : field("oemSupplier", "OEM / Supplier *")}
           <div>
@@ -613,7 +623,7 @@ export default function StockPage() {
           </div>
           {isSet ? setField("location", "Location") : field("location", "Location")}
           <div>
-            <label className="label-field">Purchase Cost ($)</label>
+            <label className="label-field">Purchase Cost - US ($)</label>
             <input
               type="number"
               className="input-field"

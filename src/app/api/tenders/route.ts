@@ -6,6 +6,7 @@ export async function GET() {
   try {
     const rows = await prisma.tender.findMany({
       orderBy: { tenderSubmittedDate: "desc" },
+      include: { images: { orderBy: { sortOrder: "asc" } } },
     });
     return NextResponse.json(rows.map(serializeTender));
   } catch (error) {

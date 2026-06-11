@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { dispatchAllReserved } from "@/lib/po-service";
+import { deletePoImageFile } from "@/lib/po-images";
 import { serializePO } from "@/lib/serializers";
 
 type Params = { params: { id: string } };
@@ -9,7 +10,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
   try {
     const po = await prisma.pOMaster.findUnique({
       where: { id: Number(params.id) },
-      include: { serialAllocations: { orderBy: { createdAt: "desc" } } },
+      include: {
+        images: { orderBy: { sortOrder: "asc" } },
+        serialAllocations: { orderBy: { createdAt: "desc" } },
+      },
     });
     if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
     return NextResponse.json(serializePO(po));
@@ -56,14 +60,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
         status: body.status ?? existing.status,
         remarks: body.remarks !== undefined ? body.remarks : existing.remarks,
       },
-      include: { serialAllocations: true },
+      include: { images: { orderBy: { sortOrder: "asc" } }, serialAllocations: true },
     });
 
     if (body.status === "Dispatch" && existing.status !== "Dispatch") {
       await dispatchAllReserved(id);
       const refreshed = await prisma.pOMaster.findUnique({
         where: { id },
-        include: { serialAllocations: true },
+        include: { images: { orderBy: { sortOrder: "asc" } }, serialAllocations: true },
       });
       return NextResponse.json(serializePO(refreshed!));
     }
@@ -91,6 +95,14 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     const { releaseSerial } = await import("@/lib/po-service");
     for (const allocation of allocations) {
       await releaseSerial(allocation.id);
+    }
+
+    const po = await prisma.pOMaster.findUnique({
+      where: { id },
+      include: { images: true },
+    });
+    if (po) {
+      await Promise.all(po.images.map((image) => deletePoImageFile(image.filePath)));
     }
 
     await prisma.pOMaster.delete({ where: { id } });

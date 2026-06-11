@@ -277,9 +277,22 @@ model POMaster {
   updatedAt            DateTime @updatedAt
 
   serialAllocations POSerialAllocation[]
+  images             POImage[]
 
   @@index([status])
   @@index([clientName])
+}
+
+model POImage {
+  id         Int      @id @default(autoincrement())
+  poMasterId Int
+  poMaster   POMaster @relation(fields: [poMasterId], references: [id], onDelete: Cascade)
+  filePath   String
+  fileName   String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([poMasterId])
 }
 
 model POSerialAllocation {
@@ -333,7 +346,21 @@ model Tender {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
+  images TenderImage[]
+
   @@index([organizationName])
   @@index([tenderSubmittedDate])
   @@index([status])
+}
+
+model TenderImage {
+  id        Int      @id @default(autoincrement())
+  tenderId  Int
+  tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  filePath  String
+  fileName  String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([tenderId])
 }
