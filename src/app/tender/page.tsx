@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Eye, Trophy, XCircle, Ban, FileX } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Trophy, Ban, FileX, ClipboardCheck } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
-import StockImageUpload, {
-  MAX_STOCK_IMAGES,
-  type PendingStockImage,
-  type StockImageRecord,
-} from "@/components/stock/StockImageUpload";
-import { TENDER_STATUSES } from "@/lib/constants";
+import TenderDocumentUpload, {
+  type PendingTenderDocument,
+  type TenderDocumentRecord,
+} from "@/components/tender/TenderDocumentUpload";
+import { TENDER_STATUSES, TENDER_TYPES, YES_NO_OPTIONS } from "@/lib/constants";
+import type { TenderDocType } from "@/lib/tender-documents";
 import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
 
 type Tender = {
@@ -23,34 +23,31 @@ type Tender = {
   orderValue: number;
   status: string;
   statusAsOnDate: string;
-  images?: StockImageRecord[];
+  fixedRa: string;
+  miiPreference: string;
+  tenderType: string;
+  documents?: TenderDocumentRecord[];
 };
 
-const emptyForm = (): {
-  organizationName: string;
-  location: string;
-  tenderBidNo: string;
-  tenderSubmittedDate: string;
-  quotedProduct: string;
-  orderValue: number;
-  status: string;
-  statusAsOnDate: string;
-} => ({
+const emptyForm = () => ({
   organizationName: "",
   location: "",
   tenderBidNo: "",
   tenderSubmittedDate: new Date().toISOString().split("T")[0],
   quotedProduct: "",
   orderValue: 0,
-  status: TENDER_STATUSES[0],
+  status: "Tender Filled Up",
   statusAsOnDate: "",
+  fixedRa: YES_NO_OPTIONS[1],
+  miiPreference: YES_NO_OPTIONS[1],
+  tenderType: TENDER_TYPES[0],
 });
 
 const STATUS_CARDS = [
-  { status: "Tender Win", icon: Trophy, color: "bg-emerald-100 text-emerald-700" },
-  { status: "Technically Disqualified", icon: Ban, color: "bg-orange-100 text-orange-700" },
-  { status: "Commercially Disqualified", icon: XCircle, color: "bg-amber-100 text-amber-700" },
-  { status: "Tender Canceled", icon: FileX, color: "bg-rose-100 text-rose-700" },
+  { status: "Tender Win", icon: Trophy, color: "bg-emerald-100 text-emerald-700", valueColor: "text-emerald-700" },
+  { status: "Tender Filled Up", icon: ClipboardCheck, color: "bg-sky-100 text-sky-700", valueColor: "text-sky-700" },
+  { status: "Total Disqualified", icon: Ban, color: "bg-orange-100 text-orange-700", valueColor: "text-orange-700", combined: ["Technically Disqualified", "Commercially Disqualified"] as const },
+  { status: "Tender Canceled", icon: FileX, color: "bg-rose-100 text-rose-700", valueColor: "text-rose-700" },
 ] as const;
 
 export default function TenderPage() {
@@ -60,37 +57,35 @@ export default function TenderPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
-  const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
-  const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
-  const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
+  const [existingDocs, setExistingDocs] = useState<TenderDocumentRecord[]>([]);
+  const [pendingDocs, setPendingDocs] = useState<PendingTenderDocument[]>([]);
+  const [removedDocIds, setRemovedDocIds] = useState<number[]>([]);
 
-  const resetImageState = () => {
-    setPendingImages((prev) => {
-      prev.forEach((image) => URL.revokeObjectURL(image.preview));
-      return [];
-    });
-    setExistingImages([]);
-    setRemovedImageIds([]);
+  const resetDocState = () => {
+    setExistingDocs([]);
+    setPendingDocs([]);
+    setRemovedDocIds([]);
   };
 
-  const uploadTenderImages = async (tenderId: number) => {
-    for (const imageId of removedImageIds) {
-      const res = await fetch(`/api/tenders/${tenderId}/images?imageId=${imageId}`, { method: "DELETE" });
+  const uploadTenderDocuments = async (tenderId: number) => {
+    for (const docId of removedDocIds) {
+      const res = await fetch(`/api/tenders/${tenderId}/documents?documentId=${docId}`, { method: "DELETE" });
       if (!res.ok) {
-        throw new Error((await res.json()).error || "Failed to remove image");
+        throw new Error((await res.json()).error || "Failed to remove document");
       }
     }
 
-    if (!pendingImages.length) return;
-
-    const formData = new FormData();
-    pendingImages.forEach((image) => formData.append("images", image.file));
-    const res = await fetch(`/api/tenders/${tenderId}/images`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) {
-      throw new Error((await res.json()).error || "Failed to upload images");
+    for (const pending of pendingDocs) {
+      const formData = new FormData();
+      formData.append("docType", pending.docType);
+      formData.append("file", pending.file);
+      const res = await fetch(`/api/tenders/${tenderId}/documents`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        throw new Error((await res.json()).error || "Failed to upload document");
+      }
     }
   };
 
@@ -106,50 +101,47 @@ export default function TenderPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    TENDER_STATUSES.forEach((s) => { counts[s] = 0; });
+  const statusStats = useMemo(() => {
+    const stats: Record<string, { count: number; value: number }> = {};
+    TENDER_STATUSES.forEach((s) => { stats[s] = { count: 0, value: 0 }; });
     rows.forEach((row) => {
-      if (counts[row.status] !== undefined) counts[row.status] += 1;
+      if (stats[row.status]) {
+        stats[row.status].count += 1;
+        stats[row.status].value += row.orderValue;
+      }
     });
-    return counts;
+    return stats;
   }, [rows]);
 
-  const addPendingImages = (files: File[]) => {
-    const visibleExisting = existingImages.filter((image) => !removedImageIds.includes(image.id)).length;
-    const remaining = MAX_STOCK_IMAGES - visibleExisting - pendingImages.length;
-    const accepted = files.slice(0, remaining);
-    setPendingImages((prev) => [
-      ...prev,
-      ...accepted.map((file) => ({ file, preview: URL.createObjectURL(file) })),
-    ]);
-  };
+  const disqualifiedStats = useMemo(() => ({
+    count:
+      (statusStats["Technically Disqualified"]?.count || 0) +
+      (statusStats["Commercially Disqualified"]?.count || 0),
+    value:
+      (statusStats["Technically Disqualified"]?.value || 0) +
+      (statusStats["Commercially Disqualified"]?.value || 0),
+  }), [statusStats]);
 
-  const removePendingImage = (index: number) => {
-    setPendingImages((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(index, 1);
-      if (removed) URL.revokeObjectURL(removed.preview);
-      return next;
-    });
+  const removePendingDoc = (docType: TenderDocType) => {
+    setPendingDocs((prev) => prev.filter((d) => d.docType !== docType));
   };
 
   const closeModal = () => {
-    resetImageState();
+    resetDocState();
     setModal(false);
   };
 
   const openCreate = () => {
     setEditId(null);
-    resetImageState();
+    resetDocState();
     setForm(emptyForm());
     setModal(true);
   };
 
   const openEdit = (row: Tender) => {
     setEditId(row.id);
-    resetImageState();
-    setExistingImages(row.images || []);
+    resetDocState();
+    setExistingDocs(row.documents || []);
     setForm({
       organizationName: row.organizationName,
       location: row.location,
@@ -159,6 +151,9 @@ export default function TenderPage() {
       orderValue: row.orderValue,
       status: row.status,
       statusAsOnDate: row.statusAsOnDate,
+      fixedRa: row.fixedRa || YES_NO_OPTIONS[1],
+      miiPreference: row.miiPreference || YES_NO_OPTIONS[1],
+      tenderType: row.tenderType || TENDER_TYPES[0],
     });
     setModal(true);
   };
@@ -185,11 +180,11 @@ export default function TenderPage() {
 
       try {
         const saved = await res.json();
-        await uploadTenderImages(saved.id);
+        await uploadTenderDocuments(saved.id);
         closeModal();
         load();
       } catch (error) {
-        alert(error instanceof Error ? error.message : "Failed to save images");
+        alert(error instanceof Error ? error.message : "Failed to save documents");
       }
     } finally {
       setSaving(false);
@@ -203,26 +198,41 @@ export default function TenderPage() {
     else alert((await res.json()).error);
   };
 
+  const getCardStats = (card: (typeof STATUS_CARDS)[number]) => {
+    if ("combined" in card) {
+      return disqualifiedStats;
+    }
+    return statusStats[card.status] || { count: 0, value: 0 };
+  };
+
   return (
     <div>
-      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div className="kpi-card border-blue-200 bg-blue-50/50">
           <p className="text-sm font-semibold text-slate-600">Total Tenders</p>
           <p className="mt-2 text-3xl font-bold text-blue-700">{rows.length}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-600">
+            {formatCurrency(rows.reduce((sum, r) => sum + r.orderValue, 0))}
+          </p>
         </div>
-        {STATUS_CARDS.map(({ status, icon: Icon, color }) => (
-          <div key={status} className="kpi-card">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold leading-snug text-slate-600">{status}</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{statusCounts[status] ?? 0}</p>
-              </div>
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${color}`}>
-                <Icon size={20} />
+        {STATUS_CARDS.map((card) => {
+          const { count, value } = getCardStats(card);
+          const Icon = card.icon;
+          return (
+            <div key={card.status} className="kpi-card">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold leading-snug text-slate-600">{card.status}</p>
+                  <p className="mt-2 text-3xl font-bold text-slate-900">{count}</p>
+                  <p className={`mt-1 text-sm font-bold ${card.valueColor}`}>{formatCurrency(value)}</p>
+                </div>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${card.color}`}>
+                  <Icon size={20} />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mb-4 flex justify-end">
@@ -230,10 +240,10 @@ export default function TenderPage() {
       </div>
 
       <div className="card-panel overflow-x-auto">
-        <table className="w-full min-w-[1200px]">
+        <table className="w-full min-w-[1400px]">
           <thead>
             <tr>
-              {["#", "Organization Name", "Location", "Tender Bid No.", "Submitted Date", "Quoted Product", "Order Value", "Status", "Status As On Date", "Actions"].map((h) => (
+              {["#", "Organization", "Location", "Tender Bid No.", "Submitted", "Product", "Order Value", "Type", "Fixed RA", "MII", "Status", "Status As On", "Actions"].map((h) => (
                 <th key={h} className="table-header">{h}</th>
               ))}
             </tr>
@@ -241,7 +251,7 @@ export default function TenderPage() {
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="table-cell py-10 text-center text-slate-500">
+                <td colSpan={13} className="table-cell py-10 text-center text-slate-500">
                   No tender records yet. Click &quot;Add Tender&quot; to create one.
                 </td>
               </tr>
@@ -255,6 +265,9 @@ export default function TenderPage() {
                   <td className="table-cell">{formatDate(row.tenderSubmittedDate)}</td>
                   <td className="table-cell-wrap" title={row.quotedProduct}>{row.quotedProduct}</td>
                   <td className="table-cell font-semibold">{formatCurrency(row.orderValue)}</td>
+                  <td className="table-cell">{row.tenderType || "—"}</td>
+                  <td className="table-cell">{row.fixedRa || "—"}</td>
+                  <td className="table-cell">{row.miiPreference || "—"}</td>
                   <td className="table-cell"><StatusBadge status={row.status} compact /></td>
                   <td className="table-cell-wrap" title={row.statusAsOnDate}>{row.statusAsOnDate || "—"}</td>
                   <td className="table-cell">
@@ -309,6 +322,24 @@ export default function TenderPage() {
               {TENDER_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label-field">Fixed RA</label>
+            <select className="input-field" value={form.fixedRa} onChange={(e) => setForm({ ...form, fixedRa: e.target.value })}>
+              {YES_NO_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label-field">MII Preference</label>
+            <select className="input-field" value={form.miiPreference} onChange={(e) => setForm({ ...form, miiPreference: e.target.value })}>
+              {YES_NO_OPTIONS.map((o) => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label-field">Tender Type</label>
+            <select className="input-field" value={form.tenderType} onChange={(e) => setForm({ ...form, tenderType: e.target.value })}>
+              {TENDER_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </div>
           <div className="col-span-2">
             <label className="label-field">Status As On Date</label>
             <textarea
@@ -320,13 +351,22 @@ export default function TenderPage() {
           </div>
         </div>
         <div className="mt-5">
-          <StockImageUpload
-            existing={existingImages}
-            pending={pendingImages}
-            removedIds={removedImageIds}
-            onAdd={addPendingImages}
-            onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
-            onRemovePending={removePendingImage}
+          <TenderDocumentUpload
+            existing={existingDocs}
+            pending={pendingDocs}
+            removedIds={removedDocIds}
+            onAdd={(docType, file) => {
+              if (docType === "zip") {
+                setPendingDocs([{ docType, file }]);
+                return;
+              }
+              setPendingDocs((prev) => [
+                ...prev.filter((d) => d.docType !== "zip" && d.docType !== docType),
+                { docType, file },
+              ]);
+            }}
+            onRemoveExisting={(docId) => setRemovedDocIds((prev) => [...prev, docId])}
+            onRemovePending={removePendingDoc}
           />
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -351,6 +391,9 @@ export default function TenderPage() {
                 { label: "Submitted Date", value: formatDate(viewItem.tenderSubmittedDate) },
                 { label: "Quoted Product", value: viewItem.quotedProduct },
                 { label: "Order Value", value: formatCurrency(viewItem.orderValue) },
+                { label: "Tender Type", value: viewItem.tenderType || "—" },
+                { label: "Fixed RA", value: viewItem.fixedRa || "—" },
+                { label: "MII Preference", value: viewItem.miiPreference || "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
@@ -361,19 +404,19 @@ export default function TenderPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status As On Date</p>
                 <p className="mt-1 whitespace-pre-wrap text-base text-slate-800">{viewItem.statusAsOnDate || "—"}</p>
               </div>
-              {viewItem.images && viewItem.images.length > 0 && (
+              {viewItem.documents && viewItem.documents.length > 0 && (
                 <div className="col-span-2">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Photos</p>
-                  <div className="flex flex-wrap gap-3">
-                    {viewItem.images.map((image) => (
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Documents</p>
+                  <div className="space-y-2">
+                    {viewItem.documents.map((doc) => (
                       <a
-                        key={image.id}
-                        href={image.url}
+                        key={doc.id}
+                        href={doc.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block h-24 w-24 overflow-hidden rounded-lg border border-slate-200"
+                        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
                       >
-                        <img src={image.url} alt={image.fileName} className="h-full w-full object-cover" />
+                        {doc.docType === "zip" ? "ZIP" : doc.docType === "tender_bid" ? "Tender Bid" : "Technical Spec"} — {doc.fileName}
                       </a>
                     ))}
                   </div>

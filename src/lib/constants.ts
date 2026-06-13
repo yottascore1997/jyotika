@@ -141,10 +141,14 @@ export const PO_ALLOCATION_STATUSES = ["Reserved", "Sold"] as const;
 
 export const TENDER_STATUSES = [
   "Tender Win",
+  "Tender Filled Up",
   "Technically Disqualified",
   "Commercially Disqualified",
   "Tender Canceled",
 ] as const;
+
+export const YES_NO_OPTIONS = ["Yes", "No"] as const;
+export const TENDER_TYPES = ["Standard", "Open"] as const;
 
 export type StockStatus = (typeof STOCK_STATUSES)[number];
 export type StockHolder = (typeof STOCK_HOLDERS)[number];

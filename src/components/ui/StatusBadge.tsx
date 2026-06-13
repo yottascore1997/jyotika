@@ -35,6 +35,7 @@ const statusStyles: Record<string, string> = {
   "Technically Disqualified": "bg-orange-50 text-orange-700 ring-orange-600/20",
   "Commercially Disqualified": "bg-amber-50 text-amber-700 ring-amber-600/20",
   "Tender Canceled": "bg-rose-50 text-rose-700 ring-rose-600/20",
+  "Tender Filled Up": "bg-sky-50 text-sky-700 ring-sky-600/20",
 };
 
 export default function StatusBadge({

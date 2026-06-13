@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const rows = await prisma.tender.findMany({
       orderBy: { tenderSubmittedDate: "desc" },
-      include: { images: { orderBy: { sortOrder: "asc" } } },
+      include: { documents: { orderBy: { createdAt: "asc" } } },
     });
     return NextResponse.json(rows.map(serializeTender));
   } catch (error) {
@@ -36,9 +36,13 @@ export async function POST(request: NextRequest) {
           : new Date(),
         quotedProduct: body.quotedProduct,
         orderValue: Number(body.orderValue) || 0,
-        status: body.status || "Tender Win",
+        status: body.status || "Tender Filled Up",
         statusAsOnDate: body.statusAsOnDate || "",
+        fixedRa: body.fixedRa || "No",
+        miiPreference: body.miiPreference || "No",
+        tenderType: body.tenderType || "Standard",
       },
+      include: { documents: true },
     });
 
     return NextResponse.json(serializeTender(tender), { status: 201 });

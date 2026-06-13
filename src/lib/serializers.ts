@@ -398,6 +398,24 @@ export function serializePOAllocation(allocation: {
   };
 }
 
+export function serializeTenderDocument(document: {
+  id: number;
+  docType: string;
+  filePath: string;
+  fileName: string;
+  fileSize: number;
+  createdAt: Date;
+}) {
+  return {
+    id: document.id,
+    docType: document.docType,
+    url: document.filePath.startsWith("/") ? document.filePath : `/${document.filePath}`,
+    fileName: document.fileName,
+    fileSize: document.fileSize,
+    createdAt: document.createdAt.toISOString(),
+  };
+}
+
 export function serializeTender(tender: {
   id: number;
   organizationName: string;
@@ -408,13 +426,17 @@ export function serializeTender(tender: {
   orderValue: unknown;
   status: string;
   statusAsOnDate: string;
+  fixedRa: string;
+  miiPreference: string;
+  tenderType: string;
   createdAt: Date;
   updatedAt: Date;
-  images?: Array<{
+  documents?: Array<{
     id: number;
+    docType: string;
     filePath: string;
     fileName: string;
-    sortOrder: number;
+    fileSize: number;
     createdAt: Date;
   }>;
 }) {
@@ -424,6 +446,6 @@ export function serializeTender(tender: {
     tenderSubmittedDate: tender.tenderSubmittedDate.toISOString(),
     createdAt: tender.createdAt.toISOString(),
     updatedAt: tender.updatedAt.toISOString(),
-    images: tender.images?.map(serializeEntityImage) ?? [],
+    documents: tender.documents?.map(serializeTenderDocument) ?? [],
   };
 }

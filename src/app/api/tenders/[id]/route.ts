@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { deleteTenderImageFile } from "@/lib/tender-images";
+import { deleteTenderDocumentFile } from "@/lib/tender-documents";
 import { serializeTender } from "@/lib/serializers";
 
 type Params = { params: { id: string } };
@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const id = Number(params.id);
     const tender = await prisma.tender.findUnique({
       where: { id },
-      include: { images: { orderBy: { sortOrder: "asc" } } },
+      include: { documents: { orderBy: { createdAt: "asc" } } },
     });
     if (!tender) {
       return NextResponse.json({ error: "Tender not found" }, { status: 404 });
@@ -44,7 +44,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
         orderValue: body.orderValue !== undefined ? Number(body.orderValue) : existing.orderValue,
         status: body.status ?? existing.status,
         statusAsOnDate: body.statusAsOnDate ?? existing.statusAsOnDate,
+        fixedRa: body.fixedRa ?? existing.fixedRa,
+        miiPreference: body.miiPreference ?? existing.miiPreference,
+        tenderType: body.tenderType ?? existing.tenderType,
       },
+      include: { documents: { orderBy: { createdAt: "asc" } } },
     });
 
     return NextResponse.json(serializeTender(tender));
@@ -59,13 +63,13 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     const id = Number(params.id);
     const existing = await prisma.tender.findUnique({
       where: { id },
-      include: { images: true },
+      include: { documents: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Tender not found" }, { status: 404 });
     }
 
-    await Promise.all(existing.images.map((image) => deleteTenderImageFile(image.filePath)));
+    await Promise.all(existing.documents.map((doc) => deleteTenderDocumentFile(doc.filePath)));
 
     await prisma.tender.delete({ where: { id } });
     return NextResponse.json({ success: true });

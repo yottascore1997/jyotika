@@ -341,26 +341,31 @@ model Tender {
   tenderSubmittedDate  DateTime
   quotedProduct        String
   orderValue           Decimal  @default(0) @db.Decimal(12, 2)
-  status               String   @default("Tender Win")
+  status               String   @default("Tender Filled Up")
   statusAsOnDate       String   @db.Text
+  fixedRa              String   @default("No")
+  miiPreference        String   @default("No")
+  tenderType           String   @default("Standard")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  images TenderImage[]
+  documents TenderDocument[]
 
   @@index([organizationName])
   @@index([tenderSubmittedDate])
   @@index([status])
 }
 
-model TenderImage {
+model TenderDocument {
   id        Int      @id @default(autoincrement())
   tenderId  Int
   tender    Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  docType   String
   filePath  String
   fileName  String
-  sortOrder Int      @default(0)
+  fileSize  Int      @default(0)
   createdAt DateTime @default(now())
 
+  @@unique([tenderId, docType])
   @@index([tenderId])
 }
