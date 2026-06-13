@@ -29,7 +29,21 @@ type Tender = {
   documents?: TenderDocumentRecord[];
 };
 
-const emptyForm = () => ({
+type TenderForm = {
+  organizationName: string;
+  location: string;
+  tenderBidNo: string;
+  tenderSubmittedDate: string;
+  quotedProduct: string;
+  orderValue: number;
+  status: string;
+  statusAsOnDate: string;
+  fixedRa: string;
+  miiPreference: string;
+  tenderType: string;
+};
+
+const emptyForm = (): TenderForm => ({
   organizationName: "",
   location: "",
   tenderBidNo: "",
@@ -55,7 +69,7 @@ export default function TenderPage() {
   const [modal, setModal] = useState(false);
   const [viewItem, setViewItem] = useState<Tender | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState<TenderForm>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [existingDocs, setExistingDocs] = useState<TenderDocumentRecord[]>([]);
   const [pendingDocs, setPendingDocs] = useState<PendingTenderDocument[]>([]);
