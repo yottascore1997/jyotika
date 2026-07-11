@@ -59,6 +59,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
         }),
         ...(body.awbNumber !== undefined && { awbNumber: body.awbNumber }),
         ...(body.workingCondition !== undefined && { workingCondition: body.workingCondition }),
+        ...(body.partRole !== undefined && { partRole: body.partRole || null }),
       },
     });
 

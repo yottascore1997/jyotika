@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Fragment } from "react";
-import { Plus, Pencil, Trash2, Eye, ChevronDown, ChevronRight, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, ChevronDown, ChevronRight, Layers, Activity } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -424,6 +424,23 @@ export default function StockPage() {
               <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
             </div>
           )}
+          {!isSet && (
+            <div>
+              <label className="label-field">Part Role</label>
+              <select
+                className="input-field"
+                value={singleForm.partRole || ""}
+                onChange={(e) => setSingleForm({ ...singleForm, partRole: e.target.value || undefined })}
+              >
+                <option value="">None (General Item)</option>
+                {SET_PART_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r === "Main Unit" ? "Main Unit (Monitor)" : r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {isSet && (
             <div>
               <label className="label-field">Purpose</label>
@@ -658,8 +675,95 @@ export default function StockPage() {
     );
   };
 
+  const totalSets = sets.length;
+  const standaloneMonitors = standaloneItems.filter(i => i.partRole === "Main Unit").length;
+  const standaloneProbes = standaloneItems.filter(i => i.partRole === "Probe").length;
+  const setMonitors = sets.reduce((sum, s) => sum + s.items.filter(i => i.partRole === "Main Unit").length, 0);
+  const setProbes = sets.reduce((sum, s) => sum + s.items.filter(i => i.partRole === "Probe").length, 0);
+  const totalMonitors = setMonitors + standaloneMonitors;
+  const totalProbes = setProbes + standaloneProbes;
+
   return (
     <div>
+      {/* Stock Breakdown Cards */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Sets Card */}
+        <div className="kpi-card flex items-center justify-between border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">Total Sets</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">{totalSets}</p>
+            <p className="text-xs text-slate-400 mt-1.5 font-medium">Bundled Monitor + Probe</p>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
+            <Layers size={22} />
+          </div>
+        </div>
+
+        {/* Monitors (Main Units) Card */}
+        <div className="kpi-card flex items-center justify-between border-l-4 border-l-emerald-500 hover:shadow-lg transition-shadow">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">Total Monitors (Main Units)</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">{totalMonitors}</p>
+            <p className="text-xs text-slate-500 mt-1.5 font-medium">
+              {setMonitors} in Sets + {standaloneMonitors} Standalone
+            </p>
+          </div>
+          <div className="rounded-lg bg-emerald-50 p-3 text-emerald-600">
+            <Eye size={22} />
+          </div>
+        </div>
+
+        {/* Probes Card */}
+        <div className="kpi-card flex items-center justify-between border-l-4 border-l-violet-500 hover:shadow-lg transition-shadow">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">Total Probes</p>
+            <p className="text-3xl font-bold text-slate-900 mt-1">{totalProbes}</p>
+            <p className="text-xs text-slate-500 mt-1.5 font-medium">
+              {setProbes} in Sets + {standaloneProbes} Standalone
+            </p>
+          </div>
+          <div className="rounded-lg bg-violet-50 p-3 text-violet-600">
+            <Activity size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* Individual Part Calculation Formula Callout */}
+      <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/50 p-5 text-sm text-blue-900 shadow-sm">
+        <p className="font-bold text-base flex items-center gap-2 text-blue-900">
+          <Layers size={18} /> Individual Count Calculation (Breaking down Sets)
+        </p>
+        <p className="mt-1 text-xs text-slate-600">
+          Individual part calculations showing combined totals of items inside Sets and standalone inventory.
+        </p>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-blue-100/70 pt-4">
+          <div>
+            <p className="font-semibold text-slate-700">Monitors Calculation:</p>
+            <div className="mt-1 font-mono text-[13px] text-slate-600 flex flex-wrap items-center gap-1">
+              <span>({totalSets} Sets &times; 1 Monitor)</span>
+              <span>+</span>
+              <span>{standaloneMonitors} Standalone</span>
+              <span>=</span>
+              <span className="font-bold text-blue-900 text-sm bg-blue-100 px-2 py-0.5 rounded">
+                {totalMonitors} Monitors
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="font-semibold text-slate-700">Probes Calculation:</p>
+            <div className="mt-1 font-mono text-[13px] text-slate-600 flex flex-wrap items-center gap-1">
+              <span>({setProbes} Probes in Sets)</span>
+              <span>+</span>
+              <span>{standaloneProbes} Standalone</span>
+              <span>=</span>
+              <span className="font-bold text-blue-900 text-sm bg-blue-100 px-2 py-0.5 rounded">
+                {totalProbes} Probes
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-3">
         <input
           className="input-field max-w-sm"

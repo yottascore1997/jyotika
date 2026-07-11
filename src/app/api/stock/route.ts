@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
             : null,
           awbNumber: body.awbNumber || null,
           workingCondition: body.workingCondition || null,
+          partRole: body.partRole || null,
         },
       });
 
