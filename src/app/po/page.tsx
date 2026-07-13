@@ -1,11 +1,12 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X, Clock, CheckCircle, FileText, DollarSign } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
 import EmptyState from "@/components/ui/EmptyState";
+import StatCard from "@/components/ui/StatCard";
 import StockImageUpload, {
   MAX_STOCK_IMAGES,
   type PendingStockImage,
@@ -173,6 +174,19 @@ export default function POPage() {
 
   const totalValue = form.quantityOrdered * form.unitValue;
 
+  const stats = useMemo(() => {
+    const totalCount = rows.length;
+    const pendingCount = rows.filter((r) => r.status !== "Completed").length;
+    const completedCount = rows.filter((r) => r.status === "Completed").length;
+    const totalVal = rows.reduce((sum, r) => sum + Number(r.totalPoValue || 0), 0);
+    return {
+      totalCount,
+      pendingCount,
+      completedCount,
+      totalVal,
+    };
+  }, [rows]);
+
   const save = async () => {
     if (saving) return;
 
@@ -316,55 +330,95 @@ export default function POPage() {
   };
 
   return (
-    <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
+    <div className="space-y-6">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Value ($)"
+          value={formatUsd(stats.totalVal)}
+          icon={DollarSign}
+          gradient="from-blue-600 to-indigo-600"
+          delay={0}
+          compact={true}
+        />
+        <StatCard
+          title="Pending POs"
+          value={stats.pendingCount}
+          icon={Clock}
+          gradient="from-amber-500 to-orange-500"
+          delay={100}
+          compact={true}
+        />
+        <StatCard
+          title="Completed POs"
+          value={stats.completedCount}
+          icon={CheckCircle}
+          gradient="from-emerald-500 to-teal-500"
+          delay={200}
+          compact={true}
+        />
+        <StatCard
+          title="Total Orders"
+          value={stats.totalCount}
+          icon={FileText}
+          gradient="from-violet-500 to-fuchsia-500"
+          delay={300}
+          compact={true}
+        />
+      </div>
+
+      {/* Tab Switcher & Create Button Row */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab("pending")}
-            className={`relative rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            className={`relative flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-250 shadow-sm ${
               activeTab === "pending"
-                ? "bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-500/10"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                ? "bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-900 ring-2 ring-amber-500/20 shadow-sm"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300"
             }`}
           >
+            <Clock size={16} className={activeTab === "pending" ? "text-amber-600 animate-pulse" : "text-slate-400"} />
             Pending POs
-            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+            <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
               activeTab === "pending"
-                ? "bg-primary-100 text-primary-800"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-amber-500 text-white shadow-sm"
+                : "bg-slate-100 text-slate-500"
             }`}>
               {rows.filter(row => row.status !== "Completed").length}
             </span>
           </button>
           <button
             onClick={() => setActiveTab("completed")}
-            className={`relative rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+            className={`relative flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-250 shadow-sm ${
               activeTab === "completed"
-                ? "bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-500/10"
-                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-900 ring-2 ring-emerald-500/20 shadow-sm"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300"
             }`}
           >
+            <CheckCircle size={16} className={activeTab === "completed" ? "text-emerald-600" : "text-slate-400"} />
             Completed POs
-            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+            <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
               activeTab === "completed"
-                ? "bg-primary-100 text-primary-800"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "bg-slate-100 text-slate-500"
             }`}>
               {rows.filter(row => row.status === "Completed").length}
             </span>
           </button>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-md hover:shadow-lg transition-all">
           <Plus size={16} /> Create PO
         </Button>
       </div>
 
-      <div className="card-panel overflow-x-auto">
-        <table className="w-full min-w-[1280px]">
+      <div className="card-panel overflow-x-auto border border-slate-200">
+        <table className="w-full min-w-[1280px] border-collapse">
           <thead>
             <tr>
-              <th className="table-header w-10" />
+              <th className="table-header border border-slate-200 w-10 bg-slate-150" />
               {[
+                { h: "Actions", w: "w-[100px]" },
                 { h: "PO ID", w: "w-[90px]" },
                 { h: "Client", w: "w-[120px]" },
                 { h: "Location", w: "w-[100px]" },
@@ -378,9 +432,8 @@ export default function POPage() {
                 { h: "Total Value ($)", w: "w-[110px]" },
                 { h: "Advance", w: "w-[80px]" },
                 { h: "PO Status", w: "w-[100px]" },
-                { h: "Actions", w: "w-[100px]" },
               ].map(({ h, w }) => (
-                <th key={h} className={`table-header ${w}`}>{h}</th>
+                <th key={h} className={`table-header border border-slate-200 bg-slate-100 ${w}`}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -403,46 +456,58 @@ export default function POPage() {
 
                 return (
                   <Fragment key={po.id}>
-                    <tr className="table-row">
-                      <td className="table-cell w-10">
-                        <button
-                          onClick={() => setExpandedId(expandedId === po.id ? null : po.id)}
-                          className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                        >
-                          {expandedId === po.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                        </button>
-                      </td>
-                      <td className="table-cell font-mono text-sm font-semibold text-blue-600">{po.poId}</td>
-                      <td className="table-cell font-medium">{po.clientName}</td>
-                      <td className="table-cell">{po.location}</td>
-                      <td className="table-cell">{po.poNumber}</td>
-                      <td className="table-cell">{formatDate(po.poDate)}</td>
-                      <td className="table-cell">{po.orderType}</td>
-                      <td className="table-cell">{po.salesPerson}</td>
-                      <td className="table-cell-wrap" title={po.itemDescription}>{po.itemDescription}</td>
-                      <td className="table-cell font-mono text-sm">{po.serialNumber || "-"}</td>
-                      <td className="table-cell text-center">{po.quantityOrdered}</td>
-                      <td className="table-cell font-semibold">{formatUsd(po.totalPoValue)}</td>
-                      <td className="table-cell text-xs">{po.advanceRequired ? (po.advanceReceived ? "Received" : "Required") : "No"}</td>
-                      <td className="table-cell"><StatusBadge status={po.status} compact /></td>
-                      <td className="table-cell">
-                        <div className="flex items-center gap-1">
-                          {po.status !== "Completed" && (
-                            <button title="Edit" onClick={() => openEdit(po)} className="rounded-md p-2 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>
-                          )}
-                          {reserved > 0 && (
-                            <button title="Dispatch All" onClick={() => dispatchAll(po.id)} className="rounded-md p-2 text-violet-600 hover:bg-violet-50"><Truck size={16} /></button>
-                          )}
-                          <button title="Delete" onClick={async () => {
-                            if (confirm("Delete this PO?")) {
-                              const res = await fetch(`/api/po/${po.id}`, { method: "DELETE" });
-                              if (res.ok) { load(); loadStock(); }
-                              else alert((await res.json()).error);
-                            }
-                          }} className="rounded-md p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
+                  <tr className="table-row">
+                    <td className="table-cell border border-slate-200 w-10 text-center">
+                      <button
+                        onClick={() => setExpandedId(expandedId === po.id ? null : po.id)}
+                        className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                      >
+                        {expandedId === po.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                    </td>
+                    <td className="table-cell border border-slate-200">
+                      <div className="flex items-center gap-1">
+                        {po.status !== "Completed" && (
+                          <button title="Edit" onClick={() => openEdit(po)} className="rounded-md p-2 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>
+                        )}
+                        {reserved > 0 && (
+                          <button title="Dispatch All" onClick={() => dispatchAll(po.id)} className="rounded-md p-2 text-violet-600 hover:bg-violet-50"><Truck size={16} /></button>
+                        )}
+                        <button title="Delete" onClick={async () => {
+                          if (confirm("Delete this PO?")) {
+                            const res = await fetch(`/api/po/${po.id}`, { method: "DELETE" });
+                            if (res.ok) { load(); loadStock(); }
+                            else alert((await res.json()).error);
+                          }
+                        }} className="rounded-md p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                    <td className="table-cell border border-slate-200 font-mono text-sm font-semibold text-blue-600">{po.poId}</td>
+                    <td className="table-cell border border-slate-200 font-medium">{po.clientName}</td>
+                    <td className="table-cell border border-slate-200">{po.location}</td>
+                    <td className="table-cell border border-slate-200">{po.poNumber}</td>
+                    <td className="table-cell border border-slate-200">{formatDate(po.poDate)}</td>
+                    <td className="table-cell border border-slate-200">{po.orderType}</td>
+                    <td className="table-cell border border-slate-200">{po.salesPerson}</td>
+                    <td className="table-cell-wrap border border-slate-200" title={po.itemDescription}>{po.itemDescription}</td>
+                    <td className="table-cell border border-slate-200 font-mono text-sm">{po.serialNumber || "-"}</td>
+                    <td className="table-cell border border-slate-200 text-center">{po.quantityOrdered}</td>
+                    <td className="table-cell border border-slate-200 font-semibold">{formatUsd(po.totalPoValue)}</td>
+                    <td className="table-cell border border-slate-200 text-xs">{po.advanceRequired ? (po.advanceReceived ? "Received" : "Required") : "No"}</td>
+                    <td className="table-cell border border-slate-200">
+                      {po.status === "Completed" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          Completed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          {po.status}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
                     {expandedId === po.id && (
                       <tr>
                         <td colSpan={15} className="bg-slate-50 px-6 py-4">
