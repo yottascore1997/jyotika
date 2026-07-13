@@ -265,6 +265,7 @@ model POMaster {
   orderType            String
   salesPerson          String
   itemDescription      String
+  serialNumber         String?
   quantityOrdered      Int      @default(1)
   unitValue            Decimal  @default(0) @db.Decimal(12, 2)
   totalPoValue         Decimal  @default(0) @db.Decimal(12, 2)

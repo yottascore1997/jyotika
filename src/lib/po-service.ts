@@ -48,7 +48,7 @@ async function allocateSerialImpl(params: {
 }) {
   const po = await prisma.pOMaster.findUnique({ where: { id: params.poMasterId } });
   if (!po) throw new Error("PO not found");
-  if (po.status === "Closed" || po.status === "Cancelled") {
+  if (po.status === "Completed") {
     throw new Error(`Cannot allocate serials on ${po.status} PO`);
   }
 
@@ -321,7 +321,7 @@ async function dispatchAllReservedImpl(poMasterId: number) {
   if (!allocations.length) {
     await prisma.pOMaster.update({
       where: { id: poMasterId },
-      data: { status: "Dispatch" },
+      data: { status: "Completed" },
     });
     return;
   }
@@ -358,7 +358,7 @@ async function dispatchAllReservedImpl(poMasterId: number) {
 
     await tx.pOMaster.update({
       where: { id: poMasterId },
-      data: { status: "Dispatch" },
+      data: { status: "Completed" },
     });
   }, TX_OPTIONS);
 }

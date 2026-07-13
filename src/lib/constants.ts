@@ -133,7 +133,7 @@ export const PO_ORDER_TYPES = [
   "Replacement",
 ] as const;
 
-export const PO_STATUSES = ["PO", "PI", "Ready", "Dispatch", "Closed", "Cancelled"] as const;
+export const PO_STATUSES = ["Pending", "Completed"] as const;
 
 export const PO_STOCK_TYPES = ["New Stock", "Demo Stock", "Refurbished", "Buyback"] as const;
 

@@ -337,6 +337,7 @@ export function serializePO(po: {
   orderType: string;
   salesPerson: string;
   itemDescription: string;
+  serialNumber?: string | null;
   quantityOrdered: number;
   unitValue: unknown;
   totalPoValue: unknown;
@@ -369,6 +370,7 @@ export function serializePO(po: {
 }) {
   return {
     ...po,
+    serialNumber: po.serialNumber ?? null,
     unitValue: toNumber(po.unitValue),
     totalPoValue: toNumber(po.totalPoValue),
     poDate: po.poDate.toISOString(),

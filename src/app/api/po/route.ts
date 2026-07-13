@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { createPOWithStock } from "@/lib/po-service";
+import { generatePOId } from "@/lib/po-service";
 import { serializePO } from "@/lib/serializers";
 
 export async function GET() {
@@ -31,30 +31,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!Array.isArray(body.serialNumbers) || body.serialNumbers.length === 0) {
-      return NextResponse.json(
-        { error: "Select at least one serial from Stock Master" },
-        { status: 400 }
-      );
-    }
+    const poId = await generatePOId();
+    const quantityOrdered = Number(body.quantityOrdered) || 1;
+    const unitValue = Number(body.unitValue) || 0;
+    const totalPoValue = quantityOrdered * unitValue;
 
-    const po = await createPOWithStock(
-      {
+    const po = await prisma.pOMaster.create({
+      data: {
+        poId,
         clientName: body.clientName,
-        location: body.location,
+        location: body.location || "",
         poNumber: body.poNumber,
-        poDate: body.poDate,
-        orderType: body.orderType,
-        salesPerson: body.salesPerson,
-        unitValue: body.unitValue,
-        advanceRequired: body.advanceRequired,
-        advanceReceived: body.advanceReceived,
-        expectedDeliveryDate: body.expectedDeliveryDate,
-        status: body.status,
-        remarks: body.remarks,
+        poDate: body.poDate ? new Date(body.poDate) : new Date(),
+        orderType: body.orderType || "New Supply",
+        salesPerson: body.salesPerson || "",
+        itemDescription: body.itemDescription || "",
+        serialNumber: body.serialNumber || null,
+        quantityOrdered,
+        unitValue,
+        totalPoValue,
+        advanceRequired: Boolean(body.advanceRequired),
+        advanceReceived: Boolean(body.advanceReceived),
+        expectedDeliveryDate: body.expectedDeliveryDate
+          ? new Date(body.expectedDeliveryDate)
+          : null,
+        status: body.status || "PO",
+        remarks: body.remarks || null,
       },
-      body.serialNumbers
-    );
+    });
 
     return NextResponse.json(serializePO(po!), { status: 201 });
   } catch (error) {

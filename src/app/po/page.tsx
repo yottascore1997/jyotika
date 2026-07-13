@@ -5,13 +5,14 @@ import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X } from "lucide-r
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
+import EmptyState from "@/components/ui/EmptyState";
 import StockImageUpload, {
   MAX_STOCK_IMAGES,
   type PendingStockImage,
   type StockImageRecord,
 } from "@/components/stock/StockImageUpload";
 import { PO_ORDER_TYPES, PO_STATUSES } from "@/lib/constants";
-import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
+import { formatUsd, formatDate, toInputDate } from "@/lib/utils";
 
 type POAllocation = {
   id: number;
@@ -32,6 +33,7 @@ type POMaster = {
   orderType: string;
   salesPerson: string;
   itemDescription: string;
+  serialNumber: string | null;
   quantityOrdered: number;
   unitValue: number;
   totalPoValue: number;
@@ -64,6 +66,9 @@ const emptyForm = (): {
   poDate: string;
   orderType: string;
   salesPerson: string;
+  itemDescription: string;
+  serialNumber: string;
+  quantityOrdered: number;
   unitValue: number;
   advanceRequired: boolean;
   advanceReceived: boolean;
@@ -77,6 +82,9 @@ const emptyForm = (): {
   poDate: new Date().toISOString().split("T")[0],
   orderType: PO_ORDER_TYPES[0],
   salesPerson: "",
+  itemDescription: "",
+  serialNumber: "",
+  quantityOrdered: 1,
   unitValue: 0,
   advanceRequired: false,
   advanceReceived: false,
@@ -88,19 +96,25 @@ const emptyForm = (): {
 export default function POPage() {
   const [rows, setRows] = useState<POMaster[]>([]);
   const [availableStock, setAvailableStock] = useState<StockOption[]>([]);
+  const [activeTab, setActiveTab] = useState<"pending" | "completed">("pending");
   const [modal, setModal] = useState(false);
   const [allocModal, setAllocModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [activePoId, setActivePoId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
-  const [selectedStocks, setSelectedStocks] = useState<StockOption[]>([]);
-  const [pickSerial, setPickSerial] = useState("");
   const [addSerial, setAddSerial] = useState("");
   const [saving, setSaving] = useState(false);
   const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
   const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
   const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      const isCompleted = row.status === "Completed";
+      return activeTab === "completed" ? isCompleted : !isCompleted;
+    });
+  }, [rows, activeTab]);
 
   const resetImageState = () => {
     setPendingImages((prev) => {
@@ -157,46 +171,18 @@ export default function POPage() {
     loadStock();
   }, []);
 
-  const selectedSerials = useMemo(() => new Set(selectedStocks.map((s) => s.serialNumber)), [selectedStocks]);
-
-  const stockPool = availableStock.filter((s) => !selectedSerials.has(s.serialNumber));
-
-  const derivedItem = useMemo(() => {
-    const models = Array.from(new Set(selectedStocks.map((s) => s.modelNumber)));
-    return models.join(", ");
-  }, [selectedStocks]);
-
-  const derivedQty = selectedStocks.length;
-  const totalValue = derivedQty * form.unitValue;
-
-  const addStockToSelection = (serial: string) => {
-    const stock = availableStock.find((s) => s.serialNumber === serial);
-    if (!stock || selectedSerials.has(serial)) return;
-    setSelectedStocks((prev) => [...prev, stock]);
-    setPickSerial("");
-  };
-
-  const removeFromSelection = (serial: string) => {
-    setSelectedStocks((prev) => prev.filter((s) => s.serialNumber !== serial));
-  };
+  const totalValue = form.quantityOrdered * form.unitValue;
 
   const save = async () => {
     if (saving) return;
-    if (!editId && selectedStocks.length === 0) {
-      alert("Pehle Stock Master se kam se kam ek serial select karein");
-      return;
-    }
 
     setSaving(true);
     try {
       const url = editId ? `/api/po/${editId}` : "/api/po";
-      const payload = editId
-        ? { ...form, expectedDeliveryDate: form.expectedDeliveryDate || null }
-        : {
-            ...form,
-            expectedDeliveryDate: form.expectedDeliveryDate || null,
-            serialNumbers: selectedStocks.map((s) => s.serialNumber),
-          };
+      const payload = {
+        ...form,
+        expectedDeliveryDate: form.expectedDeliveryDate || null,
+      };
 
       const res = await fetch(url, {
         method: editId ? "PUT" : "POST",
@@ -213,7 +199,6 @@ export default function POPage() {
         await uploadPoImages(saved.id);
         setModal(false);
         resetImageState();
-        setSelectedStocks([]);
         load();
         loadStock();
       } catch (error) {
@@ -252,8 +237,6 @@ export default function POPage() {
     setEditId(null);
     resetImageState();
     setForm(emptyForm());
-    setSelectedStocks([]);
-    setPickSerial("");
     setModal(true);
   };
 
@@ -268,7 +251,10 @@ export default function POPage() {
       poDate: toInputDate(po.poDate),
       orderType: po.orderType,
       salesPerson: po.salesPerson,
-      unitValue: po.unitValue,
+      itemDescription: po.itemDescription,
+      serialNumber: po.serialNumber || "",
+      quantityOrdered: po.quantityOrdered,
+      unitValue: Number(po.unitValue),
       advanceRequired: po.advanceRequired,
       advanceReceived: po.advanceReceived,
       expectedDeliveryDate: toInputDate(po.expectedDeliveryDate),
@@ -331,8 +317,46 @@ export default function POPage() {
 
   return (
     <div>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={openCreate}><Plus size={16} /> Create PO from Stock</Button>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab("pending")}
+            className={`relative rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              activeTab === "pending"
+                ? "bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-500/10"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            Pending POs
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+              activeTab === "pending"
+                ? "bg-primary-100 text-primary-800"
+                : "bg-slate-100 text-slate-600"
+            }`}>
+              {rows.filter(row => row.status !== "Completed").length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            className={`relative rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+              activeTab === "completed"
+                ? "bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-500/10"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            Completed POs
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+              activeTab === "completed"
+                ? "bg-primary-100 text-primary-800"
+                : "bg-slate-100 text-slate-600"
+            }`}>
+              {rows.filter(row => row.status === "Completed").length}
+            </span>
+          </button>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus size={16} /> Create PO
+        </Button>
       </div>
 
       <div className="card-panel overflow-x-auto">
@@ -348,11 +372,12 @@ export default function POPage() {
                 { h: "PO Date", w: "w-[100px]" },
                 { h: "Order Type", w: "w-[110px]" },
                 { h: "Sales Person", w: "w-[110px]" },
-                { h: "Item (Stock)", w: "w-[130px]" },
+                { h: "Item Description", w: "w-[130px]" },
+                { h: "Serial No.", w: "w-[110px]" },
                 { h: "Qty", w: "w-[50px]" },
-                { h: "Total Value", w: "w-[110px]" },
+                { h: "Total Value ($)", w: "w-[110px]" },
                 { h: "Advance", w: "w-[80px]" },
-                { h: "Status", w: "w-[80px]" },
+                { h: "PO Status", w: "w-[100px]" },
                 { h: "Actions", w: "w-[100px]" },
               ].map(({ h, w }) => (
                 <th key={h} className={`table-header ${w}`}>{h}</th>
@@ -360,149 +385,122 @@ export default function POPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((po) => {
-              const allocations = po.serialAllocations || [];
-              const reserved = allocations.filter((a) => a.status === "Reserved").length;
-              const sold = allocations.filter((a) => a.status === "Sold").length;
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td colSpan={15} className="py-12">
+                  <EmptyState
+                    icon={Truck}
+                    title={activeTab === "pending" ? "No pending purchase orders" : "No completed purchase orders"}
+                    description={activeTab === "pending" ? "All purchase orders have been closed or cancelled." : "Completed or cancelled purchase orders will appear here."}
+                  />
+                </td>
+              </tr>
+            ) : (
+              filteredRows.map((po) => {
+                const allocations = po.serialAllocations || [];
+                const reserved = allocations.filter((a) => a.status === "Reserved").length;
+                const sold = allocations.filter((a) => a.status === "Sold").length;
 
-              return (
-                <Fragment key={po.id}>
-                  <tr className="table-row">
-                    <td className="table-cell w-10">
-                      <button
-                        onClick={() => setExpandedId(expandedId === po.id ? null : po.id)}
-                        className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                      >
-                        {expandedId === po.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                      </button>
-                    </td>
-                    <td className="table-cell font-mono text-sm font-semibold text-blue-600">{po.poId}</td>
-                    <td className="table-cell font-medium">{po.clientName}</td>
-                    <td className="table-cell">{po.location}</td>
-                    <td className="table-cell">{po.poNumber}</td>
-                    <td className="table-cell">{formatDate(po.poDate)}</td>
-                    <td className="table-cell">{po.orderType}</td>
-                    <td className="table-cell">{po.salesPerson}</td>
-                    <td className="table-cell-wrap" title={po.itemDescription}>{po.itemDescription}</td>
-                    <td className="table-cell text-center">{po.quantityOrdered}</td>
-                    <td className="table-cell font-semibold">{formatCurrency(po.totalPoValue)}</td>
-                    <td className="table-cell text-xs">{po.advanceRequired ? (po.advanceReceived ? "Received" : "Required") : "No"}</td>
-                    <td className="table-cell"><StatusBadge status={po.status} compact /></td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        <button title="Edit" onClick={() => openEdit(po)} className="rounded-md p-2 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>
-                        {reserved > 0 && (
-                          <button title="Dispatch All" onClick={() => dispatchAll(po.id)} className="rounded-md p-2 text-violet-600 hover:bg-violet-50"><Truck size={16} /></button>
-                        )}
-                        <button title="Delete" onClick={async () => {
-                          if (confirm("Delete this PO?")) {
-                            const res = await fetch(`/api/po/${po.id}`, { method: "DELETE" });
-                            if (res.ok) { load(); loadStock(); }
-                            else alert((await res.json()).error);
-                          }
-                        }} className="rounded-md p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={16} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                  {expandedId === po.id && (
-                    <tr>
-                      <td colSpan={14} className="bg-slate-50 px-6 py-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-sm font-bold text-slate-700">
-                            Stock Linked Serials — Reserved: {reserved} / Sold: {sold} / Qty: {po.quantityOrdered}
-                          </p>
-                          {po.status !== "Closed" && po.status !== "Cancelled" && (
-                            <Button size="sm" variant="secondary" onClick={() => openAllocModal(po.id)}>
-                              <Plus size={14} /> Add Stock Serial
-                            </Button>
+                return (
+                  <Fragment key={po.id}>
+                    <tr className="table-row">
+                      <td className="table-cell w-10">
+                        <button
+                          onClick={() => setExpandedId(expandedId === po.id ? null : po.id)}
+                          className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                        >
+                          {expandedId === po.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                      </td>
+                      <td className="table-cell font-mono text-sm font-semibold text-blue-600">{po.poId}</td>
+                      <td className="table-cell font-medium">{po.clientName}</td>
+                      <td className="table-cell">{po.location}</td>
+                      <td className="table-cell">{po.poNumber}</td>
+                      <td className="table-cell">{formatDate(po.poDate)}</td>
+                      <td className="table-cell">{po.orderType}</td>
+                      <td className="table-cell">{po.salesPerson}</td>
+                      <td className="table-cell-wrap" title={po.itemDescription}>{po.itemDescription}</td>
+                      <td className="table-cell font-mono text-sm">{po.serialNumber || "-"}</td>
+                      <td className="table-cell text-center">{po.quantityOrdered}</td>
+                      <td className="table-cell font-semibold">{formatUsd(po.totalPoValue)}</td>
+                      <td className="table-cell text-xs">{po.advanceRequired ? (po.advanceReceived ? "Received" : "Required") : "No"}</td>
+                      <td className="table-cell"><StatusBadge status={po.status} compact /></td>
+                      <td className="table-cell">
+                        <div className="flex items-center gap-1">
+                          {po.status !== "Completed" && (
+                            <button title="Edit" onClick={() => openEdit(po)} className="rounded-md p-2 text-blue-600 hover:bg-blue-50"><Pencil size={16} /></button>
                           )}
+                          {reserved > 0 && (
+                            <button title="Dispatch All" onClick={() => dispatchAll(po.id)} className="rounded-md p-2 text-violet-600 hover:bg-violet-50"><Truck size={16} /></button>
+                          )}
+                          <button title="Delete" onClick={async () => {
+                            if (confirm("Delete this PO?")) {
+                              const res = await fetch(`/api/po/${po.id}`, { method: "DELETE" });
+                              if (res.ok) { load(); loadStock(); }
+                              else alert((await res.json()).error);
+                            }
+                          }} className="rounded-md p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={16} /></button>
                         </div>
-                        {allocations.length === 0 ? (
-                          <p className="text-sm text-slate-500">No stock linked.</p>
-                        ) : (
-                          <table className="w-full rounded-lg border bg-white">
-                            <thead>
-                              <tr>
-                                {["PO ID", "Model", "Serial No.", "Stock", "Status", "Actions"].map((h) => (
-                                  <th key={h} className="table-header">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {allocations.map((a) => (
-                                <tr key={a.id} className="table-row">
-                                  <td className="table-cell font-mono text-xs">{po.poId}</td>
-                                  <td className="table-cell">{a.model}</td>
-                                  <td className="table-cell font-semibold">{a.serialNumber}</td>
-                                  <td className="table-cell">{a.stockType}</td>
-                                  <td className="table-cell"><StatusBadge status={a.status} compact /></td>
-                                  <td className="table-cell">
-                                    {a.status === "Reserved" && (
-                                      <div className="flex gap-1">
-                                        <Button size="sm" onClick={() => dispatchOne(po.id, a.id)}>Dispatch</Button>
-                                        <Button size="sm" variant="secondary" onClick={() => releaseAllocation(po.id, a.id)}>Release</Button>
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
+                    {expandedId === po.id && (
+                      <tr>
+                        <td colSpan={15} className="bg-slate-50 px-6 py-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <p className="text-sm font-bold text-slate-700">
+                              Stock Linked Serials — Reserved: {reserved} / Sold: {sold} / Qty: {po.quantityOrdered}
+                            </p>
+                            {po.status !== "Completed" && (
+                              <Button size="sm" variant="secondary" onClick={() => openAllocModal(po.id)}>
+                                <Plus size={14} /> Add Stock Serial
+                              </Button>
+                            )}
+                          </div>
+                          {allocations.length === 0 ? (
+                            <p className="text-sm text-slate-500">No stock linked.</p>
+                          ) : (
+                            <table className="w-full rounded-lg border bg-white">
+                              <thead>
+                                <tr>
+                                  {["PO ID", "Model", "Serial No.", "Stock", "Status", "Actions"].map((h) => (
+                                    <th key={h} className="table-header">{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {allocations.map((a) => (
+                                  <tr key={a.id} className="table-row">
+                                    <td className="table-cell font-mono text-xs">{po.poId}</td>
+                                    <td className="table-cell">{a.model}</td>
+                                    <td className="table-cell font-semibold">{a.serialNumber}</td>
+                                    <td className="table-cell">{a.stockType}</td>
+                                    <td className="table-cell"><StatusBadge status={a.status} compact /></td>
+                                    <td className="table-cell">
+                                      {a.status === "Reserved" && (
+                                        <div className="flex gap-1">
+                                          <Button size="sm" onClick={() => dispatchOne(po.id, a.id)}>Dispatch</Button>
+                                          <Button size="sm" variant="secondary" onClick={() => releaseAllocation(po.id, a.id)}>Release</Button>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit PO" : "Create PO from Stock"} size="xl">
-        {!editId && (
-          <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
-            <p className="mb-3 text-sm font-bold text-slate-800">Step 1 — Stock Master se Serial Select karein *</p>
-            <div className="flex gap-2">
-              <select className="input-field flex-1" value={pickSerial} onChange={(e) => setPickSerial(e.target.value)}>
-                <option value="">Available stock serial...</option>
-                {stockPool.map((s) => (
-                  <option key={s.id} value={s.serialNumber}>
-                    {s.stockId} | {s.serialNumber} | {s.modelNumber} | {s.materialType}
-                  </option>
-                ))}
-              </select>
-              <Button variant="secondary" onClick={() => addStockToSelection(pickSerial)} disabled={!pickSerial}>Add</Button>
-            </div>
-            {selectedStocks.length > 0 ? (
-              <div className="mt-3 overflow-x-auto rounded-lg border bg-white">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>{["Stock ID", "Serial", "Model", "Stock", "Cost", ""].map((h) => <th key={h} className="table-header">{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {selectedStocks.map((s) => (
-                      <tr key={s.serialNumber} className="table-row">
-                        <td className="table-cell font-mono text-xs">{s.stockId}</td>
-                        <td className="table-cell font-semibold">{s.serialNumber}</td>
-                        <td className="table-cell">{s.modelNumber}</td>
-                        <td className="table-cell">{s.materialType}</td>
-                        <td className="table-cell">{formatCurrency(s.purchaseCost)}</td>
-                        <td className="table-cell">
-                          <button onClick={() => removeFromSelection(s.serialNumber)} className="rounded p-1 text-rose-500 hover:bg-rose-50"><X size={14} /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-amber-700">Bina stock select kiye PO create nahi hoga.</p>
-            )}
-          </div>
-        )}
-
-        <p className="mb-3 text-sm font-bold text-slate-800">{editId ? "PO Details" : "Step 2 — PO Details"}</p>
+      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit PO" : "Create PO"} size="xl">
+        <p className="mb-3 text-sm font-bold text-slate-800">PO Details</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label-field">Client Name *</label>
@@ -531,27 +529,37 @@ export default function POPage() {
             <input className="input-field" value={form.salesPerson} onChange={(e) => setForm({ ...form, salesPerson: e.target.value })} />
           </div>
           <div>
-            <label className="label-field">Item Description (from Stock)</label>
-            <input className="input-field bg-slate-50" readOnly value={editId ? rows.find((r) => r.id === editId)?.itemDescription || "" : derivedItem} />
+            <label className="label-field">Item Description *</label>
+            <input className="input-field" value={form.itemDescription} onChange={(e) => setForm({ ...form, itemDescription: e.target.value })} placeholder="Enter item description" />
           </div>
           <div>
-            <label className="label-field">Quantity (from Stock)</label>
-            <input className="input-field bg-slate-50" readOnly value={editId ? rows.find((r) => r.id === editId)?.quantityOrdered || 0 : derivedQty} />
+            <label className="label-field">Serial Number</label>
+            <input className="input-field" value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} placeholder="Enter serial number" />
           </div>
           <div>
-            <label className="label-field">Unit Value (₹)</label>
-            <input type="number" className="input-field" value={form.unitValue} onChange={(e) => setForm({ ...form, unitValue: Number(e.target.value) })} />
+            <label className="label-field">Quantity Ordered *</label>
+            <input type="number" className="input-field" value={form.quantityOrdered === 0 ? "" : form.quantityOrdered} onChange={(e) => {
+              const val = e.target.value;
+              setForm({ ...form, quantityOrdered: val === "" ? 0 : Number(val) });
+            }} />
           </div>
           <div>
-            <label className="label-field">Total PO Value</label>
-            <input className="input-field bg-slate-50" readOnly value={formatCurrency(editId ? (rows.find((r) => r.id === editId)?.totalPoValue || 0) : totalValue)} />
+            <label className="label-field">Unit Value ($) *</label>
+            <input type="number" className="input-field" value={form.unitValue === 0 ? "" : form.unitValue} onChange={(e) => {
+              const val = e.target.value;
+              setForm({ ...form, unitValue: val === "" ? 0 : Number(val) });
+            }} />
+          </div>
+          <div>
+            <label className="label-field">Total PO Value ($)</label>
+            <input className="input-field bg-slate-50" readOnly value={formatUsd(totalValue)} />
           </div>
           <div>
             <label className="label-field">Expected Delivery Date</label>
             <input type="date" className="input-field" value={form.expectedDeliveryDate} onChange={(e) => setForm({ ...form, expectedDeliveryDate: e.target.value })} />
           </div>
           <div>
-            <label className="label-field">Status</label>
+            <label className="label-field">PO Status</label>
             <select className="input-field" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
               {PO_STATUSES.map((s) => <option key={s}>{s}</option>)}
             </select>
@@ -583,8 +591,8 @@ export default function POPage() {
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={closeModal}>Cancel</Button>
-          <Button onClick={save} disabled={saving || (!editId && selectedStocks.length === 0)}>
-            {saving ? "Saving..." : editId ? "Update PO" : "Create PO & Reserve Stock"}
+          <Button onClick={save} disabled={saving || !form.clientName || !form.poNumber || !form.itemDescription || form.quantityOrdered <= 0}>
+            {saving ? "Saving..." : editId ? "Update PO" : "Create PO"}
           </Button>
         </div>
       </Modal>

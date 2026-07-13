@@ -47,6 +47,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
         orderType: body.orderType ?? existing.orderType,
         salesPerson: body.salesPerson ?? existing.salesPerson,
         itemDescription: body.itemDescription ?? existing.itemDescription,
+        serialNumber: body.serialNumber !== undefined ? body.serialNumber : existing.serialNumber,
         quantityOrdered,
         unitValue,
         totalPoValue,
@@ -63,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       include: { images: { orderBy: { sortOrder: "asc" } }, serialAllocations: true },
     });
 
-    if (body.status === "Dispatch" && existing.status !== "Dispatch") {
+    if (body.status === "Completed" && existing.status !== "Completed") {
       await dispatchAllReserved(id);
       const refreshed = await prisma.pOMaster.findUnique({
         where: { id },
