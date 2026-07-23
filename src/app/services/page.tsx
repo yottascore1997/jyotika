@@ -63,7 +63,7 @@ function ServicesContent() {
       if (Array.isArray(setsData)) {
         for (const s of setsData) {
           suggestions.push({
-            serialNumber: s.mainSerialNumber,
+            serialNumber: s.mainSerialNumber || s.setId,
             modelNumber: s.modelNumber,
             label: `Set (${s.items?.length || 0} items)`,
           });

@@ -26,10 +26,13 @@ export const INWARD_STOCK_STATUSES = [
     description:
       "Repaired material received back and waiting to be dispatched to the customer.",
   },
-  {
-    value: "DOA (Dead on Arrival)",
-    description: "Material found defective upon receipt.",
-  },
+] as const;
+
+/** Unit types for Add Stock (single item). */
+export const STOCK_UNIT_TYPES = [
+  { value: "Main Unit", label: "Monitor", hint: "Main display / base unit" },
+  { value: "Probe", label: "Probe", hint: "Probe / camera unit" },
+  { value: "Accessory", label: "Accessory", hint: "Cable, case, or accessory" },
 ] as const;
 
 export const STOCK_HOLDERS = [
@@ -94,12 +97,40 @@ export const MATERIAL_TYPES = [
 ] as const;
 
 export const CATEGORIES = [
-  "Measuring Instrument",
-  "Control System",
-  "Sensor",
-  "Actuator",
-  "Power Supply",
-  "Other",
+  "Remote Visual Inspection (RVI) - Equipment",
+  "Non Destructive Testing - Equipment",
+  "Accessories",
+] as const;
+
+/** Deduped accessories checklist for Add Set (Jyotika lists merged). */
+export const ACCESSORIES_CHECKLIST = [
+  "Base Unit",
+  "Probe Unit",
+  "Trolley Case",
+  "Rigid Sleeve",
+  "Lithium-ion Batteries / Swappable Battery",
+  "Power Adapter",
+  "Charger Set (USB Type-C Power Adapter)",
+  "USB Charging Cable (For Power Bank)",
+  "USB Type-C Cable",
+  "HDMI Cable",
+  "HDMI Type-D Cable",
+  "Mini-HDMI Cable",
+  "EMI Core ×4 (Detachable for USB or HDMI Cable Connector Ends)",
+  "Neck Strap",
+  "Shoulder Strap",
+  "Hand Strap",
+  "Sun Visor",
+  "Insulation Cap",
+  "Probe Clamp Plug",
+  "Monopod",
+  "Calibration Block",
+  "Side View / Dual View Mirror Adapters",
+  "18 mm Metal Centering Device",
+  "38 mm Metal Centering Device",
+  "65 mm Metal Centering Device",
+  "Memory Card (64GB Micro SD)",
+  "Cleaning Kit",
 ] as const;
 
 export const WARRANTY_STATUSES = ["Active", "Expired", "Not Applicable"] as const;

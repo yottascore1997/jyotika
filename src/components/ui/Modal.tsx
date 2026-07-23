@@ -7,13 +7,13 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: "md" | "lg" | "xl";
+  size?: "md" | "lg" | "xl" | "2xl";
 }
 
 export default function Modal({ isOpen, onClose, title, children, size = "md" }: ModalProps) {
   if (!isOpen) return null;
 
-  const sizeClass = { md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl" }[size];
+  const sizeClass = { md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-4xl", "2xl": "max-w-6xl" }[size];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

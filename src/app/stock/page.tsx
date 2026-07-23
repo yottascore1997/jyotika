@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Fragment } from "react";
-import { Plus, Pencil, Trash2, Eye, ChevronDown, ChevronRight, Layers, Activity } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, ChevronDown, ChevronRight, Layers, Activity, Check } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -10,6 +10,7 @@ import StockImageUpload, {
   type PendingStockImage,
   type StockImageRecord,
 } from "@/components/stock/StockImageUpload";
+import AddSetForm from "@/components/stock/AddSetForm";
 import {
   INWARD_STOCK_STATUSES,
   STOCK_HOLDERS,
@@ -19,6 +20,7 @@ import {
   INWARD_PURPOSES,
   WORKING_CONDITIONS,
   SET_PART_ROLES,
+  STOCK_UNIT_TYPES,
 } from "@/lib/constants";
 import { formatUsd, formatDate, toInputDate } from "@/lib/utils";
 
@@ -54,7 +56,7 @@ type Stock = {
 type StockSet = {
   id: number;
   setId: string;
-  mainSerialNumber: string;
+  mainSerialNumber: string | null;
   modelNumber: string;
   make?: string;
   oemSupplier: string;
@@ -77,9 +79,6 @@ type SetItemForm = {
   receivedDate: string;
   quantity: number;
   purpose: string;
-  commercialInvoiceNo: string;
-  commercialInvoiceDate: string;
-  awbNumber: string;
   workingCondition: string;
   currentStatus: string;
   oemSupplier: string;
@@ -91,7 +90,6 @@ type SetItemForm = {
 };
 
 type CompleteSetForm = typeof setSharedDefaults & {
-  mainSerialNumber: string;
   remarks: string;
   receivedDate: string;
   commercialInvoiceDate: string;
@@ -101,7 +99,7 @@ type CompleteSetForm = typeof setSharedDefaults & {
 
 const sharedDefaults = {
   materialType: "Equipment",
-  category: "Other",
+  category: CATEGORIES[0] as string,
   warrantyStatus: "Active",
   currentStatus: "Available",
   currentHolder: "Store",
@@ -122,6 +120,7 @@ const emptySingle: Partial<Stock> = {
   ...sharedDefaults,
   quantity: 1,
   quantityUnit: "set",
+  partRole: "Main Unit",
 };
 
 const createSetItem = (defaults?: Partial<CompleteSetForm>, partRole?: string): SetItemForm => ({
@@ -132,14 +131,11 @@ const createSetItem = (defaults?: Partial<CompleteSetForm>, partRole?: string): 
   receivedDate: defaults?.receivedDate || "",
   quantity: 1,
   purpose: defaults?.purpose || INWARD_PURPOSES[0],
-  commercialInvoiceNo: defaults?.commercialInvoiceNo || "",
-  commercialInvoiceDate: defaults?.commercialInvoiceDate || "",
-  awbNumber: defaults?.awbNumber || "",
   workingCondition: defaults?.workingCondition || WORKING_CONDITIONS[0],
   currentStatus: defaults?.currentStatus || "Available",
   oemSupplier: defaults?.oemSupplier || "",
   materialType: defaults?.materialType || "Equipment",
-  category: defaults?.category || "Other",
+  category: defaults?.category || CATEGORIES[0],
   location: defaults?.location || "Main Store",
   purchaseCost: 0,
   remarks: "",
@@ -158,7 +154,6 @@ export default function StockPage() {
   const [singleForm, setSingleForm] = useState<Partial<Stock>>(emptySingle);
   const [completeSetForm, setCompleteSetForm] = useState({
     ...setSharedDefaults,
-    mainSerialNumber: "",
     remarks: "",
     receivedDate: "",
     commercialInvoiceDate: "",
@@ -169,6 +164,7 @@ export default function StockPage() {
     createSetItem(),
     createSetItem(undefined, SET_PART_ROLES[1]),
   ]);
+  const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
   const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
   const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
@@ -227,9 +223,10 @@ export default function StockPage() {
   const filteredSets = sets.filter(
     (s) =>
       s.setId.toLowerCase().includes(q) ||
-      s.mainSerialNumber.toLowerCase().includes(q) ||
+      (s.mainSerialNumber || "").toLowerCase().includes(q) ||
       s.modelNumber.toLowerCase().includes(q) ||
       (s.commercialInvoiceNo || "").toLowerCase().includes(q) ||
+      (s.awbNumber || "").toLowerCase().includes(q) ||
       s.items.some((i) => i.serialNumber.toLowerCase().includes(q))
   );
 
@@ -250,9 +247,10 @@ export default function StockPage() {
     if (mode === "single") {
       setSingleForm({ ...emptySingle, receivedDate: today });
     } else {
-      const setDefaults = { ...setSharedDefaults, mainSerialNumber: "", remarks: "", receivedDate: today, commercialInvoiceDate: "", commercialInvoiceNo: "", awbNumber: "" };
+      const setDefaults = { ...setSharedDefaults, remarks: "", receivedDate: today, commercialInvoiceDate: "", commercialInvoiceNo: "", awbNumber: "" };
       setCompleteSetForm(setDefaults);
       setSetItemRows([createSetItem(setDefaults), createSetItem(setDefaults, SET_PART_ROLES[1])]);
+      setSelectedAccessories([]);
     }
     setModal(true);
   };
@@ -272,15 +270,34 @@ export default function StockPage() {
 
   const closeModal = () => {
     resetImageState();
+    setSelectedAccessories([]);
     setModal(false);
   };
 
+  const toggleAccessory = (name: string) => {
+    setSelectedAccessories((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const buildAccessoryItems = (): SetItemForm[] =>
+    selectedAccessories.map((name, index) => ({
+      ...createSetItem(completeSetForm, "Accessory"),
+      serialNumber: `ACC-${Date.now().toString(36).toUpperCase()}-${(index + 1).toString().padStart(2, "0")}`,
+      modelNumber: name,
+      materialType: "Accessory",
+      category: "Accessories",
+      quantity: 1,
+      remarks: "From accessories checklist",
+    }));
+
   const save = async () => {
     if (addMode === "set") {
+      const items = [...setItemRows, ...buildAccessoryItems()];
       const res = await fetch("/api/stock/sets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...completeSetForm, items: setItemRows }),
+        body: JSON.stringify({ ...completeSetForm, items }),
       });
       if (res.ok) { closeModal(); load(); }
       else alert((await res.json()).error);
@@ -388,14 +405,66 @@ export default function StockPage() {
   );
 
   const renderInwardFields = (mode: "single" | "set") => {
-    const isSet = mode === "set";
-    const data = isSet ? completeSetForm : singleForm;
-    const update = isSet
-      ? (patch: Record<string, unknown>) => setCompleteSetForm({ ...completeSetForm, ...patch })
-      : (patch: Partial<Stock>) => setSingleForm({ ...singleForm, ...patch });
+    if (mode === "set") {
+      return (
+        <AddSetForm
+          form={completeSetForm}
+          onChange={(patch) => setCompleteSetForm({ ...completeSetForm, ...patch })}
+          items={setItemRows}
+          onItemsChange={setSetItemRows}
+          selectedAccessories={selectedAccessories}
+          onToggleAccessory={toggleAccessory}
+          createItem={createSetItem}
+        />
+      );
+    }
+
+    const update = (patch: Partial<Stock>) => setSingleForm({ ...singleForm, ...patch });
 
     return (
       <>
+        <div className="mb-5 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-4">
+          <p className="mb-1 text-xs font-bold uppercase tracking-wider text-blue-600">Step 1</p>
+          <label className="mb-3 block text-sm font-bold text-slate-800">Select Unit Type *</label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {STOCK_UNIT_TYPES.map((unit) => {
+              const selected = (singleForm.partRole || "Main Unit") === unit.value;
+              return (
+                <button
+                  key={unit.value}
+                  type="button"
+                  onClick={() =>
+                    setSingleForm({
+                      ...singleForm,
+                      partRole: unit.value,
+                      materialType: unit.value === "Accessory" ? "Accessory" : singleForm.materialType || "Equipment",
+                    })
+                  }
+                  className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                    selected
+                      ? "border-blue-500 bg-blue-50 shadow-sm ring-1 ring-blue-200"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                      selected ? "border-blue-600 bg-blue-600 text-white" : "border-slate-300 bg-white"
+                    }`}
+                  >
+                    {selected && <Check size={12} strokeWidth={3} />}
+                  </span>
+                  <span>
+                    <span className={`block text-sm font-bold ${selected ? "text-blue-900" : "text-slate-800"}`}>
+                      {unit.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-slate-500">{unit.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <p className="mb-4 text-sm font-semibold text-slate-500">Inward Details</p>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -403,226 +472,52 @@ export default function StockPage() {
             <input
               type="date"
               className="input-field"
-              value={toInputDate((data as { receivedDate?: string }).receivedDate)}
+              value={toInputDate(singleForm.receivedDate)}
               onChange={(e) => update({ receivedDate: e.target.value })}
             />
           </div>
-          {isSet ? setField("modelNumber", "Set Model *") : field("modelNumber", "Model *")}
-          {isSet ? setField("make", "Make / Brand") : field("make", "Make / Brand")}
-          {isSet && (
-            <div className="col-span-2">
-              {setField("mainSerialNumber", "Set Serial Number (Main) *")}
-              <p className="mt-1 text-xs text-slate-500">
-                Main unit ka serial — isi se set search hoga. Must match one item below (Main Unit).
-              </p>
-            </div>
-          )}
-          {!isSet && field("serialNumber", "Serial Number *")}
-          {!isSet && (
-            <div>
-              <label className="label-field">Quantity</label>
-              <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
-            </div>
-          )}
-          {!isSet && (
-            <div>
-              <label className="label-field">Part Role</label>
-              <select
-                className="input-field"
-                value={singleForm.partRole || ""}
-                onChange={(e) => setSingleForm({ ...singleForm, partRole: e.target.value || undefined })}
-              >
-                <option value="">None (General Item)</option>
-                {SET_PART_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r === "Main Unit" ? "Main Unit (Monitor)" : r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {isSet && (
-            <div>
-              <label className="label-field">Purpose</label>
-              <select className="input-field" value={completeSetForm.purpose || INWARD_PURPOSES[0]} onChange={(e) => setCompleteSetForm({ ...completeSetForm, purpose: e.target.value })}>
-                {INWARD_PURPOSES.map((p) => <option key={p}>{p}</option>)}
-              </select>
-            </div>
-          )}
+          {field("modelNumber", "Model *")}
+          {field("make", "Make / Brand")}
+          {field("serialNumber", "Serial Number *")}
+          <div>
+            <label className="label-field">Quantity</label>
+            <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
+          </div>
         </div>
-
-        {isSet && (
-          <>
-            <p className="mb-3 mt-5 text-sm font-semibold text-slate-500">Set Items (each with full stock details)</p>
-            <div className="space-y-4">
-              {setItemRows.map((item, idx) => {
-                const updateItem = (patch: Partial<SetItemForm>) => {
-                  const next = [...setItemRows];
-                  next[idx] = { ...next[idx], ...patch };
-                  setSetItemRows(next);
-                };
-
-                return (
-                  <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">
-                        Item {idx + 1}
-                        {item.serialNumber ? ` — ${item.serialNumber}` : ""}
-                        <span className="ml-2 font-normal text-slate-500">({item.partRole})</span>
-                      </p>
-                      {setItemRows.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setSetItemRows(setItemRows.filter((_, i) => i !== idx))}
-                          className="rounded p-2 text-rose-500 hover:bg-rose-50"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="label-field">Serial Number *</label>
-                        <input className="input-field" value={item.serialNumber} onChange={(e) => updateItem({ serialNumber: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Part Role</label>
-                        <select className="input-field" value={item.partRole} onChange={(e) => updateItem({ partRole: e.target.value })}>
-                          {SET_PART_ROLES.map((r) => <option key={r}>{r}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label-field">Received Date</label>
-                        <input type="date" className="input-field" value={toInputDate(item.receivedDate || completeSetForm.receivedDate)} onChange={(e) => updateItem({ receivedDate: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Model *</label>
-                        <input className="input-field" value={item.modelNumber} onChange={(e) => updateItem({ modelNumber: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Make / Brand</label>
-                        <input className="input-field" value={item.make} onChange={(e) => updateItem({ make: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Quantity</label>
-                        <input type="number" min={1} className="input-field" value={item.quantity} onChange={(e) => updateItem({ quantity: Number(e.target.value) })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Purpose</label>
-                        <select className="input-field" value={item.purpose} onChange={(e) => updateItem({ purpose: e.target.value })}>
-                          {INWARD_PURPOSES.map((p) => <option key={p}>{p}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label-field">Commercial Invoice No.</label>
-                        <input className="input-field" value={item.commercialInvoiceNo} onChange={(e) => updateItem({ commercialInvoiceNo: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Commercial Invoice Date</label>
-                        <input type="date" className="input-field" value={toInputDate(item.commercialInvoiceDate)} onChange={(e) => updateItem({ commercialInvoiceDate: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">AWB No.</label>
-                        <input className="input-field" value={item.awbNumber} onChange={(e) => updateItem({ awbNumber: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Working Condition</label>
-                        <select className="input-field" value={item.workingCondition} onChange={(e) => updateItem({ workingCondition: e.target.value })}>
-                          {WORKING_CONDITIONS.map((c) => <option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label-field">Status</label>
-                        {renderStatusSelect(item.currentStatus, (currentStatus) => updateItem({ currentStatus }))}
-                      </div>
-                      <div>
-                        <label className="label-field">OEM / Supplier *</label>
-                        <input className="input-field" value={item.oemSupplier} onChange={(e) => updateItem({ oemSupplier: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Material Type</label>
-                        <select className="input-field" value={item.materialType} onChange={(e) => updateItem({ materialType: e.target.value })}>
-                          {MATERIAL_TYPES.map((t) => <option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label-field">Category</label>
-                        <select className="input-field" value={item.category} onChange={(e) => updateItem({ category: e.target.value })}>
-                          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label-field">Location</label>
-                        <input className="input-field" value={item.location} onChange={(e) => updateItem({ location: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label-field">Purchase Cost - US ($)</label>
-                        <input type="number" className="input-field" value={item.purchaseCost} onChange={(e) => updateItem({ purchaseCost: Number(e.target.value) })} />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="label-field">Remarks</label>
-                        <textarea className="input-field" rows={2} value={item.remarks} onChange={(e) => updateItem({ remarks: e.target.value })} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <Button
-                variant="secondary"
-                onClick={() => setSetItemRows([...setItemRows, createSetItem(completeSetForm)])}
-              >
-                <Plus size={14} /> Add Item to Set
-              </Button>
-            </div>
-          </>
-        )}
 
         <p className="mb-3 mt-5 text-sm font-semibold text-slate-500">Invoice & Shipping</p>
         <div className="grid grid-cols-3 gap-3">
-          {isSet ? setField("commercialInvoiceNo", "Commercial Invoice No.") : field("commercialInvoiceNo", "Commercial Invoice No.")}
+          {field("commercialInvoiceNo", "Commercial Invoice No.")}
           <div>
             <label className="label-field">Commercial Invoice Date</label>
             <input
               type="date"
               className="input-field"
-              value={toInputDate(isSet ? completeSetForm.commercialInvoiceDate : singleForm.commercialInvoiceDate)}
+              value={toInputDate(singleForm.commercialInvoiceDate)}
               onChange={(e) => update({ commercialInvoiceDate: e.target.value })}
             />
           </div>
-          {isSet ? setField("awbNumber", "AWB No.") : field("awbNumber", "AWB No.")}
+          {field("awbNumber", "AWB No.")}
         </div>
 
         <p className="mb-3 mt-5 text-sm font-semibold text-slate-500">Condition & Stock Info</p>
         <div className="grid grid-cols-3 gap-3">
-          {!isSet && (
-            <div>
-              <label className="label-field">Working Condition</label>
-              <select className="input-field" value={singleForm.workingCondition || WORKING_CONDITIONS[0]} onChange={(e) => setSingleForm({ ...singleForm, workingCondition: e.target.value })}>
-                {WORKING_CONDITIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-          )}
-          {isSet && (
-            <div>
-              <label className="label-field">Set Condition</label>
-              <select className="input-field" value={completeSetForm.workingCondition || WORKING_CONDITIONS[0]} onChange={(e) => setCompleteSetForm({ ...completeSetForm, workingCondition: e.target.value })}>
-                {WORKING_CONDITIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="label-field">Working Condition</label>
+            <select className="input-field" value={singleForm.workingCondition || WORKING_CONDITIONS[0]} onChange={(e) => setSingleForm({ ...singleForm, workingCondition: e.target.value })}>
+              {WORKING_CONDITIONS.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </div>
           <div>
             <label className="label-field">Status</label>
-            {renderStatusSelect(
-              isSet ? completeSetForm.currentStatus : singleForm.currentStatus,
-              (currentStatus) => update({ currentStatus })
-            )}
+            {renderStatusSelect(singleForm.currentStatus, (currentStatus) => update({ currentStatus }))}
           </div>
-          {isSet ? setField("oemSupplier", "OEM / Supplier *") : field("oemSupplier", "OEM / Supplier *")}
+          {field("oemSupplier", "OEM / Supplier *")}
           <div>
             <label className="label-field">Material Type</label>
             <select
               className="input-field"
-              value={isSet ? completeSetForm.materialType : singleForm.materialType}
+              value={singleForm.materialType}
               onChange={(e) => update({ materialType: e.target.value })}
             >
               {MATERIAL_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -632,19 +527,19 @@ export default function StockPage() {
             <label className="label-field">Category</label>
             <select
               className="input-field"
-              value={isSet ? completeSetForm.category : singleForm.category}
+              value={singleForm.category}
               onChange={(e) => update({ category: e.target.value })}
             >
               {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
             </select>
           </div>
-          {isSet ? setField("location", "Location") : field("location", "Location")}
+          {field("location", "Location")}
           <div>
             <label className="label-field">Purchase Cost - US ($)</label>
             <input
               type="number"
               className="input-field"
-              value={isSet ? completeSetForm.purchaseCost : singleForm.purchaseCost}
+              value={singleForm.purchaseCost}
               onChange={(e) => update({ purchaseCost: Number(e.target.value) })}
             />
           </div>
@@ -653,24 +548,22 @@ export default function StockPage() {
             <textarea
               className="input-field"
               rows={2}
-              value={isSet ? completeSetForm.remarks || "" : singleForm.remarks || ""}
+              value={singleForm.remarks || ""}
               onChange={(e) => update({ remarks: e.target.value })}
             />
           </div>
         </div>
 
-        {!isSet && (
-          <div className="mt-5">
-            <StockImageUpload
-              existing={existingImages}
-              pending={pendingImages}
-              removedIds={removedImageIds}
-              onAdd={addPendingImages}
-              onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
-              onRemovePending={removePendingImage}
-            />
-          </div>
-        )}
+        <div className="mt-5">
+          <StockImageUpload
+            existing={existingImages}
+            pending={pendingImages}
+            removedIds={removedImageIds}
+            onAdd={addPendingImages}
+            onRemoveExisting={(imageId) => setRemovedImageIds((prev) => [...prev, imageId])}
+            onRemovePending={removePendingImage}
+          />
+        </div>
       </>
     );
   };
@@ -728,42 +621,6 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* Individual Part Calculation Formula Callout */}
-      <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/50 p-5 text-sm text-blue-900 shadow-sm">
-        <p className="font-bold text-base flex items-center gap-2 text-blue-900">
-          <Layers size={18} /> Individual Count Calculation (Breaking down Sets)
-        </p>
-        <p className="mt-1 text-xs text-slate-600">
-          Individual part calculations showing combined totals of items inside Sets and standalone inventory.
-        </p>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-blue-100/70 pt-4">
-          <div>
-            <p className="font-semibold text-slate-700">Monitors Calculation:</p>
-            <div className="mt-1 font-mono text-[13px] text-slate-600 flex flex-wrap items-center gap-1">
-              <span>({totalSets} Sets &times; 1 Monitor)</span>
-              <span>+</span>
-              <span>{standaloneMonitors} Standalone</span>
-              <span>=</span>
-              <span className="font-bold text-blue-900 text-sm bg-blue-100 px-2 py-0.5 rounded">
-                {totalMonitors} Monitors
-              </span>
-            </div>
-          </div>
-          <div>
-            <p className="font-semibold text-slate-700">Probes Calculation:</p>
-            <div className="mt-1 font-mono text-[13px] text-slate-600 flex flex-wrap items-center gap-1">
-              <span>({setProbes} Probes in Sets)</span>
-              <span>+</span>
-              <span>{standaloneProbes} Standalone</span>
-              <span>=</span>
-              <span className="font-bold text-blue-900 text-sm bg-blue-100 px-2 py-0.5 rounded">
-                {totalProbes} Probes
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="mb-4 flex flex-wrap gap-3">
         <input
           className="input-field max-w-sm"
@@ -783,7 +640,7 @@ export default function StockPage() {
         <table className="w-full min-w-[1200px]">
           <thead>
             <tr>
-              {["Set Serial (Main)", "Set ID", "Model", "Type", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status", "Actions"].map((h) => (
+              {["Actions", "Set ID / Serial", "Model", "Type", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status"].map((h) => (
                 <th key={h} className="table-header">{h}</th>
               ))}
             </tr>
@@ -792,8 +649,15 @@ export default function StockPage() {
             {filteredSets.map((s) => (
               <Fragment key={`set-${s.id}`}>
                 <tr className="table-row bg-blue-50">
-                  <td className="table-cell font-mono text-sm font-bold text-blue-800">
-                    {s.mainSerialNumber}
+                  <td className="table-cell">
+                    <div className="flex gap-1">
+                      <button title="View Set" onClick={() => setViewSet(s)} className="rounded p-1.5 text-slate-600 hover:bg-slate-100">
+                        <Eye size={15} />
+                      </button>
+                      <button title="Delete Set" onClick={() => deleteSet(s.setId)} className="rounded p-1.5 text-rose-500 hover:bg-rose-50">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </td>
                   <td className="table-cell">
                     <button onClick={() => toggleSet(s.id)} className="flex items-center gap-2 font-mono text-xs font-bold text-blue-700">
@@ -811,19 +675,14 @@ export default function StockPage() {
                   <td className="table-cell">{s.workingCondition || "—"}</td>
                   <td className="table-cell">{formatUsd(s.purchaseCost)}</td>
                   <td className="table-cell"><StatusBadge status={s.currentStatus} /></td>
-                  <td className="table-cell">
-                    <div className="flex gap-1">
-                      <button title="View Set" onClick={() => setViewSet(s)} className="rounded p-1.5 text-slate-600 hover:bg-slate-100">
-                        <Eye size={15} />
-                      </button>
-                      <button title="Delete Set" onClick={() => deleteSet(s.setId)} className="rounded p-1.5 text-rose-500 hover:bg-rose-50">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
                 {expandedSets.has(s.id) && s.items.map((item) => (
                   <tr key={item.id} className="table-row bg-slate-50/80">
+                    <td className="table-cell">
+                      <button title="Edit Item" onClick={() => openEdit(item)} className="rounded p-1.5 text-blue-600 hover:bg-blue-50">
+                        <Pencil size={15} />
+                      </button>
+                    </td>
                     <td className="table-cell pl-10">
                       <span className="font-semibold text-slate-800">{item.serialNumber}</span>
                       <span className="ml-2 text-xs text-slate-400">({item.partRole})</span>
@@ -837,28 +696,12 @@ export default function StockPage() {
                     <td className="table-cell">{item.workingCondition || "—"}</td>
                     <td className="table-cell">—</td>
                     <td className="table-cell"><StatusBadge status={item.currentStatus} compact /></td>
-                    <td className="table-cell">
-                      <button title="Edit Item" onClick={() => openEdit(item)} className="rounded p-1.5 text-blue-600 hover:bg-blue-50">
-                        <Pencil size={15} />
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </Fragment>
             ))}
             {filteredItems.map((i) => (
               <tr key={i.id} className="table-row">
-                <td className="table-cell font-mono text-xs text-blue-600">{i.serialNumber}</td>
-                <td className="table-cell font-mono text-xs text-slate-400">—</td>
-                <td className="table-cell">{i.modelNumber}</td>
-                <td className="table-cell">Single Item</td>
-                <td className="table-cell">1</td>
-                <td className="table-cell">{i.purpose || "—"}</td>
-                <td className="table-cell font-mono text-xs">{i.commercialInvoiceNo || "—"}</td>
-                <td className="table-cell font-mono text-xs">{i.awbNumber || "—"}</td>
-                <td className="table-cell">{i.workingCondition || "—"}</td>
-                <td className="table-cell">{formatUsd(i.purchaseCost)}</td>
-                <td className="table-cell"><StatusBadge status={i.currentStatus} /></td>
                 <td className="table-cell">
                   <div className="flex gap-1">
                     <button title="View" onClick={() => setViewItem(i)} className="rounded p-1.5 text-slate-600 hover:bg-slate-100">
@@ -876,6 +719,18 @@ export default function StockPage() {
                     </button>
                   </div>
                 </td>
+                <td className="table-cell font-mono text-xs text-blue-600">{i.serialNumber}</td>
+                <td className="table-cell">{i.modelNumber}</td>
+                <td className="table-cell">
+                  {i.partRole === "Main Unit" ? "Monitor" : i.partRole === "Probe" ? "Probe" : i.partRole || "Single Item"}
+                </td>
+                <td className="table-cell">1</td>
+                <td className="table-cell">{i.purpose || "—"}</td>
+                <td className="table-cell font-mono text-xs">{i.commercialInvoiceNo || "—"}</td>
+                <td className="table-cell font-mono text-xs">{i.awbNumber || "—"}</td>
+                <td className="table-cell">{i.workingCondition || "—"}</td>
+                <td className="table-cell">{formatUsd(i.purchaseCost)}</td>
+                <td className="table-cell"><StatusBadge status={i.currentStatus} /></td>
               </tr>
             ))}
           </tbody>
@@ -886,7 +741,7 @@ export default function StockPage() {
         isOpen={modal}
         onClose={closeModal}
         title={editId ? "Edit Stock" : addMode === "set" ? "Add Set" : "Add Stock"}
-        size="xl"
+        size={addMode === "set" ? "2xl" : "xl"}
       >
         {renderInwardFields(addMode)}
         <div className="mt-4 flex justify-end gap-2">
@@ -900,7 +755,6 @@ export default function StockPage() {
           <>
             <div className="mb-4 grid grid-cols-3 gap-3">
               {[
-                { label: "Set Serial (Main)", value: viewSet.mainSerialNumber },
                 { label: "Set ID", value: viewSet.setId },
                 { label: "Model", value: viewSet.modelNumber },
                 { label: "Items", value: `${viewSet.items.length} parts` },

@@ -7,9 +7,6 @@ export type SetItemInput = {
   modelNumber?: string;
   make?: string;
   purpose?: string;
-  commercialInvoiceNo?: string;
-  commercialInvoiceDate?: string;
-  awbNumber?: string;
   workingCondition?: string;
   currentStatus?: string;
   oemSupplier?: string;
@@ -23,7 +20,7 @@ export type SetItemInput = {
 };
 
 export type CreateSetInput = {
-  mainSerialNumber: string;
+  mainSerialNumber?: string;
   modelNumber: string;
   make?: string;
   oemSupplier?: string;
@@ -46,21 +43,13 @@ export type CreateSetInput = {
 };
 
 export async function createStockSet(input: CreateSetInput) {
-  if (!input.mainSerialNumber?.trim()) {
-    throw new Error("Set serial number (main) is required");
-  }
   if (!input.modelNumber || !input.items?.length) {
     throw new Error("modelNumber and at least one set item are required");
   }
 
-  const mainSerialNumber = input.mainSerialNumber.trim();
   const serials = input.items.map((i) => i.serialNumber.trim()).filter(Boolean);
   if (serials.length !== input.items.length) {
     throw new Error("Every set item must have a serial number");
-  }
-
-  if (!serials.includes(mainSerialNumber)) {
-    throw new Error("Set serial number must match one of the set item serial numbers (usually Main Unit)");
   }
 
   const uniqueSerials = new Set(serials);
@@ -68,11 +57,20 @@ export async function createStockSet(input: CreateSetInput) {
     throw new Error("Duplicate serial numbers in set items");
   }
 
-  const existingMain = await prisma.stockSet.findUnique({
-    where: { mainSerialNumber },
-  });
-  if (existingMain) {
-    throw new Error(`Set serial number ${mainSerialNumber} is already used by set ${existingMain.setId}`);
+  // Optional display reference only — prefer Main Unit item serial if present
+  const mainUnitItem = input.items.find((i) => (i.partRole || "").toLowerCase() === "main unit");
+  const mainSerialNumber =
+    mainUnitItem?.serialNumber.trim() ||
+    input.mainSerialNumber?.trim() ||
+    null;
+
+  if (mainSerialNumber) {
+    const existingMain = await prisma.stockSet.findUnique({
+      where: { mainSerialNumber },
+    });
+    if (existingMain) {
+      throw new Error(`Main unit serial ${mainSerialNumber} is already used by set ${existingMain.setId}`);
+    }
   }
 
   const existing = await prisma.stockMaster.findMany({
@@ -84,6 +82,9 @@ export async function createStockSet(input: CreateSetInput) {
   }
 
   const receivedDate = input.receivedDate ? new Date(input.receivedDate) : new Date();
+  const setInvoiceNo = input.commercialInvoiceNo || null;
+  const setInvoiceDate = input.commercialInvoiceDate ? new Date(input.commercialInvoiceDate) : null;
+  const setAwb = input.awbNumber || null;
 
   return prisma.$transaction(async (tx) => {
     const stockSet = await tx.stockSet.create({
@@ -94,7 +95,7 @@ export async function createStockSet(input: CreateSetInput) {
         make: input.make || null,
         oemSupplier: input.oemSupplier || "Unknown",
         materialType: input.materialType || "Equipment",
-        category: input.category || "Other",
+        category: input.category || "Others",
         receivedDate,
         warrantyStatus: input.warrantyStatus || "Active",
         poNumber: input.poNumber || null,
@@ -106,11 +107,9 @@ export async function createStockSet(input: CreateSetInput) {
         quantity: 1,
         quantityUnit: "set",
         purpose: input.purpose || null,
-        commercialInvoiceNo: input.commercialInvoiceNo || null,
-        commercialInvoiceDate: input.commercialInvoiceDate
-          ? new Date(input.commercialInvoiceDate)
-          : null,
-        awbNumber: input.awbNumber || null,
+        commercialInvoiceNo: setInvoiceNo,
+        commercialInvoiceDate: setInvoiceDate,
+        awbNumber: setAwb,
         workingCondition: input.workingCondition || null,
       },
     });
@@ -118,11 +117,6 @@ export async function createStockSet(input: CreateSetInput) {
     const items = [];
     for (const item of input.items) {
       const itemReceivedDate = item.receivedDate ? new Date(item.receivedDate) : receivedDate;
-      const itemInvoiceDate = item.commercialInvoiceDate
-        ? new Date(item.commercialInvoiceDate)
-        : input.commercialInvoiceDate
-          ? new Date(input.commercialInvoiceDate)
-          : null;
 
       const created = await tx.stockMaster.create({
         data: {
@@ -134,7 +128,7 @@ export async function createStockSet(input: CreateSetInput) {
           make: item.make ?? input.make ?? null,
           modelNumber: item.modelNumber || input.modelNumber,
           serialNumber: item.serialNumber.trim(),
-          category: item.category || input.category || "Other",
+          category: item.category || input.category || "Others",
           receivedDate: itemReceivedDate,
           warrantyStatus: input.warrantyStatus || "Active",
           poNumber: input.poNumber || null,
@@ -146,9 +140,10 @@ export async function createStockSet(input: CreateSetInput) {
           quantity: Number(item.quantity) || 1,
           quantityUnit: "pcs",
           purpose: item.purpose ?? input.purpose ?? null,
-          commercialInvoiceNo: item.commercialInvoiceNo ?? input.commercialInvoiceNo ?? null,
-          commercialInvoiceDate: itemInvoiceDate,
-          awbNumber: item.awbNumber ?? input.awbNumber ?? null,
+          // Invoice / AWB always from set level (same for all items)
+          commercialInvoiceNo: setInvoiceNo,
+          commercialInvoiceDate: setInvoiceDate,
+          awbNumber: setAwb,
           workingCondition: item.workingCondition ?? input.workingCondition ?? null,
         },
       });

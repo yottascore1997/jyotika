@@ -6,7 +6,7 @@ export function buildSetHistory(stockSet: StockSetRecord) {
     {
       date: stockSet.receivedDate.toISOString(),
       activity: "Inward (Set)",
-      details: `${stockSet.items?.length ?? 0} item(s) in set — Main Serial: ${stockSet.mainSerialNumber || "—"}`,
+      details: `${stockSet.items?.length ?? 0} item(s) in set`,
       reference: stockSet.setId,
       party: stockSet.oemSupplier,
       category: "Set",
