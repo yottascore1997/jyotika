@@ -381,7 +381,7 @@ export default function StockPage() {
     <select className="input-field" value={value || "Available"} onChange={(e) => onChange(e.target.value)}>
       {inwardStatusOptions(value).map((s) => (
         <option key={s.value} value={s.value}>
-          {s.description ? `${s.value} – ${s.description}` : s.value}
+          {s.value}
         </option>
       ))}
     </select>
@@ -506,6 +506,10 @@ export default function StockPage() {
             <label className="label-field">Working Condition</label>
             <select className="input-field" value={singleForm.workingCondition || WORKING_CONDITIONS[0]} onChange={(e) => setSingleForm({ ...singleForm, workingCondition: e.target.value })}>
               {WORKING_CONDITIONS.map((c) => <option key={c}>{c}</option>)}
+              {singleForm.workingCondition &&
+                !(WORKING_CONDITIONS as readonly string[]).includes(singleForm.workingCondition) && (
+                  <option value={singleForm.workingCondition}>{singleForm.workingCondition}</option>
+                )}
             </select>
           </div>
           <div>

@@ -6,7 +6,6 @@ export const STOCK_STATUSES = [
   "Sample",
   "Repair",
   "Repaired – Awaiting Dispatch",
-  "DOA (Dead on Arrival)",
   "Sold",
   "Returned To OEM",
   "Customer Trial",
@@ -146,7 +145,7 @@ export const INWARD_PURPOSES = [
 
 export const QUANTITY_UNITS = ["set", "pcs", "unit", "nos"] as const;
 
-export const WORKING_CONDITIONS = ["Working", "Non-Working", "Under Inspection"] as const;
+export const WORKING_CONDITIONS = ["Working", "Not Working"] as const;
 
 export const SET_PART_ROLES = [
   "Main Unit",

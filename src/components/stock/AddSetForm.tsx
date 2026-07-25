@@ -190,16 +190,21 @@ export default function AddSetForm({
           </div>
           {field("location", "Location")}
           <div>
-            <label className="label-field">Set Condition</label>
+            <label className="label-field">Default Condition</label>
             <select
               className="input-field"
               value={form.workingCondition || WORKING_CONDITIONS[0]}
-              onChange={(e) => onChange({ workingCondition: e.target.value })}
+              onChange={(e) => {
+                const workingCondition = e.target.value;
+                onChange({ workingCondition });
+                onItemsChange(items.map((item) => ({ ...item, workingCondition })));
+              }}
             >
               {WORKING_CONDITIONS.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
+            <p className="mt-1 text-[11px] text-slate-400">Applies to all units; you can change per item below</p>
           </div>
           <div>
             <label className="label-field">Status</label>
@@ -210,7 +215,7 @@ export default function AddSetForm({
             >
               {statusOptions.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.description ? `${s.value} – ${s.description}` : s.value}
+                  {s.value}
                 </option>
               ))}
             </select>
@@ -253,7 +258,7 @@ export default function AddSetForm({
       <Section
         step="Step 3"
         title="Main Units & Probes"
-        hint="Add serial numbers for core equipment only"
+        hint="Add serial numbers — set Working / Not Working per item (one can work, another may not)"
         tone="slate"
       >
         <div className="space-y-3">
@@ -324,6 +329,22 @@ export default function AddSetForm({
                       value={item.make}
                       onChange={(e) => updateItem({ make: e.target.value })}
                     />
+                  </div>
+                  <div>
+                    <label className="label-field">Working Status *</label>
+                    <select
+                      className="input-field"
+                      value={item.workingCondition || WORKING_CONDITIONS[0]}
+                      onChange={(e) => updateItem({ workingCondition: e.target.value })}
+                    >
+                      {WORKING_CONDITIONS.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                      {item.workingCondition &&
+                        !(WORKING_CONDITIONS as readonly string[]).includes(item.workingCondition) && (
+                          <option value={item.workingCondition}>{item.workingCondition}</option>
+                        )}
+                    </select>
                   </div>
                 </div>
               </div>
