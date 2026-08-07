@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X, Clock, CheckCircle, FileText, DollarSign } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronUp, Truck, X, Clock, CheckCircle, FileText, DollarSign, Layers } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -12,8 +12,8 @@ import StockImageUpload, {
   type PendingStockImage,
   type StockImageRecord,
 } from "@/components/stock/StockImageUpload";
-import { PO_ORDER_TYPES, PO_STATUSES } from "@/lib/constants";
-import { formatUsd, formatDate, toInputDate } from "@/lib/utils";
+import { PO_ORDER_TYPES, PO_STATUSES, CATEGORIES, MATERIAL_TYPES } from "@/lib/constants";
+import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
 
 type POAllocation = {
   id: number;
@@ -52,6 +52,7 @@ type StockOption = {
   stockId: string;
   serialNumber: string;
   modelNumber: string;
+  make?: string | null;
   materialType: string;
   category: string;
   oemSupplier: string;
@@ -105,6 +106,8 @@ export default function POPage() {
   const [activePoId, setActivePoId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [addSerial, setAddSerial] = useState("");
+  const [poSourceMode, setPoSourceMode] = useState<"new" | "stock">("new");
+  const [selectedStockSerial, setSelectedStockSerial] = useState("");
   const [saving, setSaving] = useState(false);
   const [existingImages, setExistingImages] = useState<StockImageRecord[]>([]);
   const [pendingImages, setPendingImages] = useState<PendingStockImage[]>([]);
@@ -211,6 +214,18 @@ export default function POPage() {
       try {
         const saved = await res.json();
         await uploadPoImages(saved.id);
+
+        if (!editId && poSourceMode === "stock" && selectedStockSerial) {
+          const allocRes = await fetch(`/api/po/${saved.id}/serials`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ serialNumber: selectedStockSerial }),
+          });
+          if (!allocRes.ok) {
+            alert("PO created, but failed to allocate stock serial: " + (await allocRes.json()).error);
+          }
+        }
+
         setModal(false);
         resetImageState();
         load();
@@ -251,6 +266,8 @@ export default function POPage() {
     setEditId(null);
     resetImageState();
     setForm(emptyForm());
+    setPoSourceMode("new");
+    setSelectedStockSerial("");
     setModal(true);
   };
 
@@ -258,6 +275,8 @@ export default function POPage() {
     setEditId(po.id);
     resetImageState();
     setExistingImages(po.images || []);
+    setPoSourceMode("new");
+    setSelectedStockSerial("");
     setForm({
       clientName: po.clientName,
       location: po.location,
@@ -334,8 +353,8 @@ export default function POPage() {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Value ($)"
-          value={formatUsd(stats.totalVal)}
+          title="Total Value (₹)"
+          value={formatCurrency(stats.totalVal)}
           icon={DollarSign}
           gradient="from-blue-600 to-indigo-600"
           delay={0}
@@ -408,7 +427,7 @@ export default function POPage() {
           </button>
         </div>
         <Button onClick={openCreate} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold shadow-md hover:shadow-lg transition-all">
-          <Plus size={16} /> Create PO
+          <Plus size={16} /> Add po details
         </Button>
       </div>
 
@@ -429,7 +448,7 @@ export default function POPage() {
                 { h: "Item Description", w: "w-[130px]" },
                 { h: "Serial No.", w: "w-[110px]" },
                 { h: "Qty", w: "w-[50px]" },
-                { h: "Total Value ($)", w: "w-[110px]" },
+                { h: "Total Value (₹)", w: "w-[110px]" },
                 { h: "Advance", w: "w-[80px]" },
                 { h: "PO Status", w: "w-[100px]" },
               ].map(({ h, w }) => (
@@ -492,7 +511,7 @@ export default function POPage() {
                     <td className="table-cell-wrap border border-slate-200" title={po.itemDescription}>{po.itemDescription}</td>
                     <td className="table-cell border border-slate-200 font-mono text-sm">{po.serialNumber || "-"}</td>
                     <td className="table-cell border border-slate-200 text-center">{po.quantityOrdered}</td>
-                    <td className="table-cell border border-slate-200 font-semibold">{formatUsd(po.totalPoValue)}</td>
+                    <td className="table-cell border border-slate-200 font-semibold">{formatCurrency(po.totalPoValue)}</td>
                     <td className="table-cell border border-slate-200 text-xs">{po.advanceRequired ? (po.advanceReceived ? "Received" : "Required") : "No"}</td>
                     <td className="table-cell border border-slate-200">
                       {po.status === "Completed" ? (
@@ -564,8 +583,91 @@ export default function POPage() {
         </table>
       </div>
 
-      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit PO" : "Create PO"} size="xl">
+      <Modal isOpen={modal} onClose={closeModal} title={editId ? "Edit PO Details" : "Add PO Details"} size="xl">
         <p className="mb-3 text-sm font-bold text-slate-800">PO Details</p>
+
+        {/* Toggle options for PO creation */}
+        {!editId && (
+          <div className="mb-4">
+            <label className="label-field mb-1.5 block text-slate-700">PO Item Source</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPoSourceMode("new");
+                  setSelectedStockSerial("");
+                  setForm(emptyForm());
+                }}
+                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition-all border shadow-sm ${
+                  poSourceMode === "new"
+                    ? "bg-emerald-50 text-emerald-900 border-emerald-500/30 ring-2 ring-emerald-500/20"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Plus size={14} className={poSourceMode === "new" ? "text-emerald-600 animate-pulse" : "text-slate-400"} />
+                New Item
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPoSourceMode("stock");
+                  setSelectedStockSerial("");
+                  setForm({
+                    ...emptyForm(),
+                    quantityOrdered: 1,
+                  });
+                }}
+                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition-all border shadow-sm ${
+                  poSourceMode === "stock"
+                    ? "bg-indigo-50 text-indigo-900 border-indigo-500/30 ring-2 ring-indigo-500/20"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Layers size={14} className={poSourceMode === "stock" ? "text-indigo-600 animate-pulse" : "text-slate-400"} />
+                From Stock Master (Repaired)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {poSourceMode === "stock" && !editId && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+            <label className="label-field text-blue-900 font-bold">Select Serial Number from Stock Master</label>
+            <select
+              className="input-field max-w-md bg-white border border-blue-300"
+              value={selectedStockSerial}
+              onChange={(e) => {
+                const serial = e.target.value;
+                setSelectedStockSerial(serial);
+                const stockItem = availableStock.find((item) => item.serialNumber === serial);
+                if (stockItem) {
+                  setForm({
+                    ...form,
+                    serialNumber: stockItem.serialNumber,
+                    itemDescription: `${stockItem.modelNumber}${stockItem.make ? " - " + stockItem.make : ""}`,
+                    unitValue: stockItem.purchaseCost || 0,
+                    quantityOrdered: 1,
+                  });
+                } else {
+                  setForm({
+                    ...form,
+                    serialNumber: "",
+                    itemDescription: "",
+                    unitValue: 0,
+                  });
+                }
+              }}
+            >
+              <option value="">Select serial...</option>
+              {availableStock.map((s) => (
+                <option key={s.id} value={s.serialNumber}>
+                  {s.stockId} | {s.serialNumber} | {s.modelNumber} {s.make ? `(${s.make})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label-field">Client Name *</label>
@@ -609,15 +711,15 @@ export default function POPage() {
             }} />
           </div>
           <div>
-            <label className="label-field">Unit Value ($) *</label>
+            <label className="label-field">Unit Value (₹) *</label>
             <input type="number" className="input-field" value={form.unitValue === 0 ? "" : form.unitValue} onChange={(e) => {
               const val = e.target.value;
               setForm({ ...form, unitValue: val === "" ? 0 : Number(val) });
             }} />
           </div>
           <div>
-            <label className="label-field">Total PO Value ($)</label>
-            <input className="input-field bg-slate-50" readOnly value={formatUsd(totalValue)} />
+            <label className="label-field">Total PO Value (₹)</label>
+            <input className="input-field bg-slate-50" readOnly value={formatCurrency(totalValue)} />
           </div>
           <div>
             <label className="label-field">Expected Delivery Date</label>
@@ -657,7 +759,7 @@ export default function POPage() {
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={closeModal}>Cancel</Button>
           <Button onClick={save} disabled={saving || !form.clientName || !form.poNumber || !form.itemDescription || form.quantityOrdered <= 0}>
-            {saving ? "Saving..." : editId ? "Update PO" : "Create PO"}
+            {saving ? "Saving..." : editId ? "Update PO Details" : "Add PO Details"}
           </Button>
         </div>
       </Modal>

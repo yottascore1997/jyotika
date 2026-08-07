@@ -29,7 +29,7 @@ export const INWARD_STOCK_STATUSES = [
 
 /** Unit types for Add Stock (single item). */
 export const STOCK_UNIT_TYPES = [
-  { value: "Main Unit", label: "Monitor", hint: "Main display / base unit" },
+  { value: "Main Unit - Display", label: "Monitor", hint: "Main display / base unit" },
   { value: "Probe", label: "Probe", hint: "Probe / camera unit" },
   { value: "Accessory", label: "Accessory", hint: "Cable, case, or accessory" },
 ] as const;
@@ -97,7 +97,7 @@ export const MATERIAL_TYPES = [
 
 export const CATEGORIES = [
   "Remote Visual Inspection (RVI) - Equipment",
-  "Non Destructive Testing - Equipment",
+  "Non Distructive Testing (NDT)- Equipement",
   "Accessories",
 ] as const;
 
@@ -148,7 +148,7 @@ export const QUANTITY_UNITS = ["set", "pcs", "unit", "nos"] as const;
 export const WORKING_CONDITIONS = ["Working", "Not Working"] as const;
 
 export const SET_PART_ROLES = [
-  "Main Unit",
+  "Main Unit - Display",
   "Probe",
   "Accessory",
   "Cable",

@@ -53,6 +53,8 @@ export type StockWithHistory = {
     returnDate: Date | null;
     status: string;
     remarks: string | null;
+    physicalDamage: boolean;
+    warrantyCoverage: string;
   }>;
   oemReturns: Array<{
     returnId: string;
@@ -157,8 +159,8 @@ export function buildServiceHistory(stock: StockWithHistory): ServiceHistoryEntr
   for (const repair of stock.repairs) {
     entries.push({
       date: repair.receivedDate.toISOString(),
-      activity: "Service Received",
-      details: `Issue: ${repair.complaint}`,
+      activity: `Service Received (${repair.warrantyCoverage})`,
+      details: `Issue: ${repair.complaint}${repair.physicalDamage ? " (Physical Damage)" : ""}`,
       reference: repair.repairId,
       party: repair.customerName,
       category: "Repair",

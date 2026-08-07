@@ -120,7 +120,7 @@ const emptySingle: Partial<Stock> = {
   ...sharedDefaults,
   quantity: 1,
   quantityUnit: "set",
-  partRole: "Main Unit",
+  partRole: "Main Unit - Display",
 };
 
 const createSetItem = (defaults?: Partial<CompleteSetForm>, partRole?: string): SetItemForm => ({
@@ -428,7 +428,7 @@ export default function StockPage() {
           <label className="mb-3 block text-sm font-bold text-slate-800">Select Unit Type *</label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {STOCK_UNIT_TYPES.map((unit) => {
-              const selected = (singleForm.partRole || "Main Unit") === unit.value;
+              const selected = (singleForm.partRole || "Main Unit - Display") === unit.value;
               return (
                 <button
                   key={unit.value}
@@ -573,9 +573,9 @@ export default function StockPage() {
   };
 
   const totalSets = sets.length;
-  const standaloneMonitors = standaloneItems.filter(i => i.partRole === "Main Unit").length;
+  const standaloneMonitors = standaloneItems.filter(i => i.partRole === "Main Unit - Display").length;
   const standaloneProbes = standaloneItems.filter(i => i.partRole === "Probe").length;
-  const setMonitors = sets.reduce((sum, s) => sum + s.items.filter(i => i.partRole === "Main Unit").length, 0);
+  const setMonitors = sets.reduce((sum, s) => sum + s.items.filter(i => i.partRole === "Main Unit - Display").length, 0);
   const setProbes = sets.reduce((sum, s) => sum + s.items.filter(i => i.partRole === "Probe").length, 0);
   const totalMonitors = setMonitors + standaloneMonitors;
   const totalProbes = setProbes + standaloneProbes;
@@ -644,7 +644,7 @@ export default function StockPage() {
         <table className="w-full min-w-[1200px]">
           <thead>
             <tr>
-              {["Actions", "Set ID / Serial", "Model", "Type", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status"].map((h) => (
+              {["Actions", "Set ID / Serial", "Model", "Type", "Received Date", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status"].map((h) => (
                 <th key={h} className="table-header">{h}</th>
               ))}
             </tr>
@@ -672,6 +672,7 @@ export default function StockPage() {
                   </td>
                   <td className="table-cell font-medium">{s.modelNumber}</td>
                   <td className="table-cell text-blue-600">Set</td>
+                  <td className="table-cell">{formatDate(s.receivedDate)}</td>
                   <td className="table-cell">{s.items.length} items</td>
                   <td className="table-cell">{s.purpose || "—"}</td>
                   <td className="table-cell font-mono text-xs">{s.commercialInvoiceNo || "—"}</td>
@@ -693,6 +694,7 @@ export default function StockPage() {
                     </td>
                     <td className="table-cell text-sm text-slate-500">{item.modelNumber}</td>
                     <td className="table-cell text-sm">Set Item</td>
+                    <td className="table-cell text-sm text-slate-500">{formatDate(item.receivedDate)}</td>
                     <td className="table-cell">1 pcs</td>
                     <td className="table-cell">{item.purpose || "—"}</td>
                     <td className="table-cell font-mono text-xs">{item.commercialInvoiceNo || "—"}</td>
@@ -726,8 +728,9 @@ export default function StockPage() {
                 <td className="table-cell font-mono text-xs text-blue-600">{i.serialNumber}</td>
                 <td className="table-cell">{i.modelNumber}</td>
                 <td className="table-cell">
-                  {i.partRole === "Main Unit" ? "Monitor" : i.partRole === "Probe" ? "Probe" : i.partRole || "Single Item"}
+                  {i.partRole === "Main Unit - Display" ? "Monitor" : i.partRole === "Probe" ? "Probe" : i.partRole || "Single Item"}
                 </td>
+                <td className="table-cell">{formatDate(i.receivedDate)}</td>
                 <td className="table-cell">1</td>
                 <td className="table-cell">{i.purpose || "—"}</td>
                 <td className="table-cell font-mono text-xs">{i.commercialInvoiceNo || "—"}</td>

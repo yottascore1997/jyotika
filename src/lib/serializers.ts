@@ -244,6 +244,8 @@ export function serializeRepair(repair: {
   returnDate: Date | null;
   status: string;
   remarks: string | null;
+  physicalDamage: boolean;
+  warrantyCoverage: string;
   stockMasterId: number;
   createdAt: Date;
   updatedAt: Date;

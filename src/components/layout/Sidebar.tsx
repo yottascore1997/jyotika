@@ -30,7 +30,7 @@ const navItems = [
   { href: "/issue", label: "Material Issue", icon: PackageMinus, hidden: true },
   { href: "/demo", label: "Demo Tracking", icon: Presentation, hidden: true },
   { href: "/handover", label: "Customer Handover", icon: Users, hidden: true },
-  { href: "/repair", label: "Repair Management", icon: Wrench, hidden: true },
+  { href: "/repair", label: "Repair Management", icon: Wrench },
   { href: "/oem-return", label: "OEM Return", icon: RotateCcw, hidden: true },
   { href: "/sales", label: "Sales", icon: ShoppingBag, hidden: true },
   { href: "/movements", label: "Movement History", icon: History, hidden: true },

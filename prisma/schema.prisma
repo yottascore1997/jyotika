@@ -193,6 +193,8 @@ model RepairCase {
   returnDate            DateTime?
   status                String      @default("Received")
   remarks               String?     @db.Text
+  physicalDamage        Boolean     @default(false)
+  warrantyCoverage      String      @default("Under Warranty")
   stockMasterId         Int
   stockMaster           StockMaster @relation(fields: [stockMasterId], references: [id])
   createdAt             DateTime    @default(now())

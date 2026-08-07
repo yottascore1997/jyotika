@@ -58,7 +58,7 @@ export async function createStockSet(input: CreateSetInput) {
   }
 
   // Optional display reference only — prefer Main Unit item serial if present
-  const mainUnitItem = input.items.find((i) => (i.partRole || "").toLowerCase() === "main unit");
+  const mainUnitItem = input.items.find((i) => (i.partRole || "").toLowerCase() === "main unit - display");
   const mainSerialNumber =
     mainUnitItem?.serialNumber.trim() ||
     input.mainSerialNumber?.trim() ||
@@ -122,7 +122,7 @@ export async function createStockSet(input: CreateSetInput) {
         data: {
           stockId: generateId("STK"),
           stockSetId: stockSet.id,
-          partRole: item.partRole || "Main Unit",
+          partRole: item.partRole || "Main Unit - Display",
           materialType: item.materialType || input.materialType || "Equipment",
           oemSupplier: item.oemSupplier || input.oemSupplier || "Unknown",
           make: item.make ?? input.make ?? null,

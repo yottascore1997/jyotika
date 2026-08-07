@@ -29,10 +29,32 @@ export async function PUT(request: NextRequest, { params }: Params) {
       repairCompletionDate?: Date;
       returnDate?: Date;
       remarks?: string | null;
+      receivedDate?: Date;
+      physicalDamage?: boolean;
+      warrantyCoverage?: string;
     } = {};
+
+    const receivedDate = body.receivedDate ? new Date(body.receivedDate) : repair.receivedDate;
+    const physicalDamage = body.physicalDamage !== undefined ? Boolean(body.physicalDamage) : repair.physicalDamage;
+
+    let warrantyCoverage = "Under Warranty";
+    const warrantyExpiry = new Date(repair.stockMaster.receivedDate);
+    warrantyExpiry.setFullYear(warrantyExpiry.getFullYear() + 1); // 1 year warranty
+
+    if (receivedDate > warrantyExpiry || repair.stockMaster.warrantyStatus === "Expired") {
+      warrantyCoverage = "Out of Warranty";
+    } else if (physicalDamage) {
+      warrantyCoverage = "Void - Physical Damage";
+    } else if (repair.stockMaster.warrantyStatus === "Not Applicable") {
+      warrantyCoverage = "Out of Warranty";
+    }
 
     if (body.status !== undefined) updateData.status = body.status;
     if (body.remarks !== undefined) updateData.remarks = body.remarks;
+    if (body.physicalDamage !== undefined) updateData.physicalDamage = physicalDamage;
+    if (body.receivedDate !== undefined) updateData.receivedDate = receivedDate;
+    updateData.warrantyCoverage = warrantyCoverage;
+
     if (body.repairStartDate !== undefined)
       updateData.repairStartDate = new Date(body.repairStartDate);
     if (body.repairCompletionDate !== undefined)

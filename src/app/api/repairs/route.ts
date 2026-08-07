@@ -38,6 +38,19 @@ export async function POST(request: NextRequest) {
     }
 
     const receivedDate = body.receivedDate ? new Date(body.receivedDate) : new Date();
+    const physicalDamage = Boolean(body.physicalDamage);
+
+    let warrantyCoverage = "Under Warranty";
+    const warrantyExpiry = new Date(stock.receivedDate);
+    warrantyExpiry.setFullYear(warrantyExpiry.getFullYear() + 1); // 1 year warranty
+
+    if (receivedDate > warrantyExpiry || stock.warrantyStatus === "Expired") {
+      warrantyCoverage = "Out of Warranty";
+    } else if (physicalDamage) {
+      warrantyCoverage = "Void - Physical Damage";
+    } else if (stock.warrantyStatus === "Not Applicable") {
+      warrantyCoverage = "Out of Warranty";
+    }
 
     const repair = await prisma.$transaction(async (tx) => {
       const created = await tx.repairCase.create({
@@ -49,6 +62,8 @@ export async function POST(request: NextRequest) {
           receivedDate,
           status: "Received",
           remarks: body.remarks || null,
+          physicalDamage,
+          warrantyCoverage,
           stockMasterId: stock.id,
         },
       });
