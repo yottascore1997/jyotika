@@ -50,6 +50,7 @@ type Stock = {
   workingCondition?: string;
   partRole?: string;
   stockSetId?: number;
+  grnNumber?: string | null;
   images?: StockImageRecord[];
 };
 
@@ -216,6 +217,7 @@ export default function StockPage() {
       i.serialNumber.toLowerCase().includes(q) ||
       i.stockId.toLowerCase().includes(q) ||
       i.modelNumber.toLowerCase().includes(q) ||
+      (i.grnNumber || "").toLowerCase().includes(q) ||
       (i.commercialInvoiceNo || "").toLowerCase().includes(q) ||
       (i.awbNumber || "").toLowerCase().includes(q)
   );
@@ -227,7 +229,11 @@ export default function StockPage() {
       s.modelNumber.toLowerCase().includes(q) ||
       (s.commercialInvoiceNo || "").toLowerCase().includes(q) ||
       (s.awbNumber || "").toLowerCase().includes(q) ||
-      s.items.some((i) => i.serialNumber.toLowerCase().includes(q))
+      s.items.some(
+        (i) =>
+          i.serialNumber.toLowerCase().includes(q) ||
+          (i.grnNumber || "").toLowerCase().includes(q)
+      )
   );
 
   const toggleSet = (id: number) => {
@@ -480,6 +486,14 @@ export default function StockPage() {
           {field("make", "Make / Brand")}
           {field("serialNumber", "Serial Number *")}
           <div>
+            <label className="label-field">GRN Number</label>
+            <input
+              className="input-field bg-slate-50"
+              value={editId ? singleForm.grnNumber || "—" : "Auto (GRN-01, GRN-02…)"}
+              readOnly
+            />
+          </div>
+          <div>
             <label className="label-field">Quantity</label>
             <input type="number" min={1} className="input-field" value={singleForm.quantity ?? 1} onChange={(e) => setSingleForm({ ...singleForm, quantity: Number(e.target.value) })} />
           </div>
@@ -628,7 +642,7 @@ export default function StockPage() {
       <div className="mb-4 flex flex-wrap gap-3">
         <input
           className="input-field max-w-sm"
-          placeholder="Search serial, set ID, model, invoice..."
+          placeholder="Search serial, GRN, set ID, model, invoice..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -644,7 +658,7 @@ export default function StockPage() {
         <table className="w-full min-w-[1200px]">
           <thead>
             <tr>
-              {["Actions", "Set ID / Serial", "Model", "Type", "Received Date", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status"].map((h) => (
+              {["Actions", "Set ID / Serial", "GRN", "Model", "Type", "Received Date", "Items", "Purpose", "Invoice", "AWB", "Condition", "Cost ($)", "Status"].map((h) => (
                 <th key={h} className="table-header">{h}</th>
               ))}
             </tr>
@@ -670,6 +684,10 @@ export default function StockPage() {
                       {s.setId}
                     </button>
                   </td>
+                  <td className="table-cell font-mono text-xs text-emerald-700">
+                    {s.items.map((i) => i.grnNumber).filter(Boolean).slice(0, 1)[0] || "—"}
+                    {s.items.filter((i) => i.grnNumber).length > 1 ? "+" : ""}
+                  </td>
                   <td className="table-cell font-medium">{s.modelNumber}</td>
                   <td className="table-cell text-blue-600">Set</td>
                   <td className="table-cell">{formatDate(s.receivedDate)}</td>
@@ -692,6 +710,7 @@ export default function StockPage() {
                       <span className="font-semibold text-slate-800">{item.serialNumber}</span>
                       <span className="ml-2 text-xs text-slate-400">({item.partRole})</span>
                     </td>
+                    <td className="table-cell font-mono text-xs text-emerald-700">{item.grnNumber || "—"}</td>
                     <td className="table-cell text-sm text-slate-500">{item.modelNumber}</td>
                     <td className="table-cell text-sm">Set Item</td>
                     <td className="table-cell text-sm text-slate-500">{formatDate(item.receivedDate)}</td>
@@ -726,6 +745,7 @@ export default function StockPage() {
                   </div>
                 </td>
                 <td className="table-cell font-mono text-xs text-blue-600">{i.serialNumber}</td>
+                <td className="table-cell font-mono text-xs text-emerald-700">{i.grnNumber || "—"}</td>
                 <td className="table-cell">{i.modelNumber}</td>
                 <td className="table-cell">
                   {i.partRole === "Main Unit - Display" ? "Monitor" : i.partRole === "Probe" ? "Probe" : i.partRole || "Single Item"}
@@ -779,7 +799,7 @@ export default function StockPage() {
             <table className="w-full">
               <thead>
                 <tr>
-                  {["Serial Number", "Part Role", "Condition", "Status"].map((h) => (
+                  {["Serial Number", "GRN", "Part Role", "Condition", "Status"].map((h) => (
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
@@ -788,6 +808,7 @@ export default function StockPage() {
                 {viewSet.items.map((item) => (
                   <tr key={item.id} className="table-row">
                     <td className="table-cell font-semibold">{item.serialNumber}</td>
+                    <td className="table-cell font-mono text-xs text-emerald-700">{item.grnNumber || "—"}</td>
                     <td className="table-cell">{item.partRole}</td>
                     <td className="table-cell">{item.workingCondition || "—"}</td>
                     <td className="table-cell"><StatusBadge status={item.currentStatus} compact /></td>
@@ -810,6 +831,7 @@ export default function StockPage() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-3">
               {[
                 { label: "Serial Number", value: viewItem.serialNumber },
+                { label: "GRN Number", value: viewItem.grnNumber || "—" },
                 { label: "Model", value: viewItem.modelNumber },
                 { label: "Purpose", value: viewItem.purpose || "—" },
                 { label: "Commercial Invoice No.", value: viewItem.commercialInvoiceNo || "—" },

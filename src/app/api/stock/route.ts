@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { generateId } from "@/lib/stock-service";
+import { createMaterialReceiptForStock, generateId } from "@/lib/stock-service";
 import { serializeStock } from "@/lib/serializers";
 
 export async function GET(request: NextRequest) {
@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
       where: view === "all" ? undefined : { stockSetId: null },
       include: {
         images: { orderBy: { sortOrder: "asc" } },
+        receipt: { select: { grnNumber: true } },
         ...(view === "all" ? { stockSet: { select: { setId: true, id: true } } } : {}),
       },
       orderBy: { updatedAt: "desc" },
@@ -74,6 +75,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      const receipt = await createMaterialReceiptForStock(tx, created, {
+        receivedBy: body.receivedBy || "Admin",
+      });
+
       await tx.stockMovement.create({
         data: {
           movementId: generateId("MOV"),
@@ -83,12 +88,12 @@ export async function POST(request: NextRequest) {
           toLocation: created.location,
           movementType: "Receipt",
           user: body.receivedBy || "Admin",
-          remarks: body.remarks || "Manual stock entry",
+          remarks: body.remarks || `GRN ${receipt.grnNumber}`,
           date: created.receivedDate,
         },
       });
 
-      return created;
+      return { ...created, receipt: { grnNumber: receipt.grnNumber } };
     });
 
     return NextResponse.json(serializeStock(stock), { status: 201 });

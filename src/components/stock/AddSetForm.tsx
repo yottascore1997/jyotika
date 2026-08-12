@@ -139,6 +139,10 @@ export default function AddSetForm({
   return (
     <div className="space-y-5">
       <Section step="Step 1" title="Set Details" hint="Fill once — applies to the whole set" tone="blue">
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-800">
+          Each unit/probe gets its own auto GRN on save (<span className="font-mono font-semibold">GRN-01</span>,{" "}
+          <span className="font-mono font-semibold">GRN-02</span>…) — linked with the serial across the app.
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label-field">Received Date *</label>

@@ -28,6 +28,7 @@ type StockRecord = {
   stockSetId: number | null;
   partRole: string | null;
   stockSet?: { setId: string; id: number } | null;
+  receipt?: { grnNumber: string } | null;
   images?: Array<{
     id: number;
     filePath: string;
@@ -58,14 +59,16 @@ export function serializeEntityImage(image: {
 export const serializeStockImage = serializeEntityImage;
 
 export function serializeStock(stock: StockRecord) {
+  const { receipt, ...rest } = stock;
   return {
-    ...stock,
+    ...rest,
     purchaseCost: toNumber(stock.purchaseCost),
     receivedDate: stock.receivedDate.toISOString(),
     commercialInvoiceDate: stock.commercialInvoiceDate?.toISOString() ?? null,
     createdAt: stock.createdAt.toISOString(),
     updatedAt: stock.updatedAt.toISOString(),
     stockSet: stock.stockSet ?? null,
+    grnNumber: receipt?.grnNumber ?? null,
     images: stock.images?.map(serializeStockImage) ?? [],
   };
 }

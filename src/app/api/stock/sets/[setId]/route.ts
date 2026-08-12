@@ -13,7 +13,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
       include: {
         items: {
           orderBy: { id: "asc" },
-          include: { images: { orderBy: { sortOrder: "asc" } } },
+          include: {
+            images: { orderBy: { sortOrder: "asc" } },
+            receipt: { select: { grnNumber: true } },
+          },
         },
       },
     });

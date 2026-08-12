@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { generateId } from "@/lib/stock-service";
+import { createMaterialReceiptForStock, generateId } from "@/lib/stock-service";
 
 export type SetItemInput = {
   serialNumber: string;
@@ -148,6 +148,11 @@ export async function createStockSet(input: CreateSetInput) {
         },
       });
 
+      const receipt = await createMaterialReceiptForStock(tx, created, {
+        receivedBy: "Admin",
+        remarks: `Set ${stockSet.setId} — ${item.partRole || "Item"}`,
+      });
+
       await tx.stockMovement.create({
         data: {
           movementId: generateId("MOV"),
@@ -157,7 +162,7 @@ export async function createStockSet(input: CreateSetInput) {
           toLocation: created.location,
           movementType: "Receipt",
           user: "Admin",
-          remarks: `Set ${stockSet.setId} — ${item.partRole || "Item"}`,
+          remarks: `GRN ${receipt.grnNumber} — Set ${stockSet.setId} — ${item.partRole || "Item"}`,
           date: receivedDate,
         },
       });

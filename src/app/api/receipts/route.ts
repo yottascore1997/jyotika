@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { generateId } from "@/lib/stock-service";
+import { createMaterialReceiptForStock, generateGRNNumber, generateId } from "@/lib/stock-service";
 import { serializeReceipt, serializeStock } from "@/lib/serializers";
 
 export async function GET() {
@@ -12,7 +12,10 @@ export async function GET() {
     return NextResponse.json(
       receipts.map((r) => ({
         ...serializeReceipt(r),
-        stock: serializeStock(r.stockMaster),
+        stock: serializeStock({
+          ...r.stockMaster,
+          receipt: { grnNumber: r.grnNumber },
+        }),
       }))
     );
   } catch (error) {
@@ -25,9 +28,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.grnNumber || !body.serialNumber || !body.modelNumber || !body.materialType) {
+    if (!body.serialNumber || !body.modelNumber || !body.materialType) {
       return NextResponse.json(
-        { error: "grnNumber, serialNumber, modelNumber, and materialType are required" },
+        { error: "serialNumber, modelNumber, and materialType are required" },
         { status: 400 }
       );
     }
@@ -42,14 +45,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingGrn = await prisma.materialReceipt.findUnique({
-      where: { grnNumber: body.grnNumber },
-    });
-    if (existingGrn) {
-      return NextResponse.json(
-        { error: `GRN number ${body.grnNumber} already exists` },
-        { status: 409 }
-      );
+    const grnNumber = body.grnNumber?.trim() || (await generateGRNNumber());
+
+    if (body.grnNumber?.trim()) {
+      const existingGrn = await prisma.materialReceipt.findUnique({
+        where: { grnNumber },
+      });
+      if (existingGrn) {
+        return NextResponse.json(
+          { error: `GRN number ${grnNumber} already exists` },
+          { status: 409 }
+        );
+      }
     }
 
     const receivedDate = body.receivedDate ? new Date(body.receivedDate) : new Date();
@@ -76,21 +83,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const receipt = await tx.materialReceipt.create({
-        data: {
-          grnNumber: body.grnNumber,
-          receivedDate,
-          supplierOem: body.supplierOem || "Unknown",
-          materialDescription: body.materialDescription || body.modelNumber,
-          modelNumber: body.modelNumber,
-          serialNumber: body.serialNumber,
-          quantity: Number(body.quantity) || 1,
-          materialType: body.materialType,
-          receivedBy: body.receivedBy || "Admin",
-          poNumber: body.poNumber || null,
-          remarks: body.remarks || null,
-          stockMasterId: stock.id,
-        },
+      const receipt = await createMaterialReceiptForStock(tx, stock, {
+        grnNumber,
+        receivedBy: body.receivedBy || "Admin",
+        remarks: body.remarks || null,
       });
 
       await tx.stockMovement.create({
@@ -102,12 +98,15 @@ export async function POST(request: NextRequest) {
           toLocation: "Main Store",
           movementType: "Receipt",
           user: body.receivedBy || "Admin",
-          remarks: `GRN ${body.grnNumber}`,
+          remarks: `GRN ${receipt.grnNumber}`,
           date: receivedDate,
         },
       });
 
-      return { receipt, stock };
+      return {
+        receipt,
+        stock: { ...stock, receipt: { grnNumber: receipt.grnNumber } },
+      };
     });
 
     return NextResponse.json(

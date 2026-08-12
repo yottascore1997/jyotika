@@ -6,13 +6,12 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { MATERIAL_TYPES, CATEGORIES, WARRANTY_STATUSES } from "@/lib/constants";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { generateId } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export default function ReceiptPage() {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({
+  const emptyForm = {
     grnNumber: "",
     receivedDate: new Date().toISOString().split("T")[0],
     supplierOem: "",
@@ -28,16 +27,18 @@ export default function ReceiptPage() {
     purchaseCost: 0,
     warrantyStatus: "Active",
     remarks: "",
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const load = () => fetch("/api/receipts").then((r) => r.json()).then(setRows);
   useEffect(() => { load(); }, []);
 
   const save = async () => {
+    const { grnNumber, ...rest } = form;
     const res = await fetch("/api/receipts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(grnNumber.trim() ? form : rest),
     });
     if (res.ok) { setModal(false); load(); }
     else alert((await res.json()).error);
@@ -46,7 +47,7 @@ export default function ReceiptPage() {
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <Button onClick={() => { setForm({ ...form, grnNumber: generateId("GRN"), serialNumber: "" }); setModal(true); }}>
+        <Button onClick={() => { setForm({ ...emptyForm, receivedDate: new Date().toISOString().split("T")[0], serialNumber: "" }); setModal(true); }}>
           <Plus size={16} /> New Receipt
         </Button>
       </div>
@@ -79,8 +80,16 @@ export default function ReceiptPage() {
 
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Material Receipt (GRN)" size="xl">
         <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="label-field">GRN Number</label>
+            <input
+              className="input-field bg-slate-50"
+              value={form.grnNumber}
+              onChange={(e) => setForm({ ...form, grnNumber: e.target.value })}
+              placeholder="Auto: GRN-01, GRN-02… (leave blank)"
+            />
+          </div>
           {[
-            { k: "grnNumber", l: "GRN Number" },
             { k: "serialNumber", l: "Serial Number *" },
             { k: "modelNumber", l: "Model Number *" },
             { k: "supplierOem", l: "Supplier / OEM *" },

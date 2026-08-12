@@ -1,10 +1,67 @@
 import { prisma } from "@/lib/db";
 import type { MovementType } from "@/lib/constants";
 
+type DbClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] | typeof prisma;
+
 export function generateId(prefix: string) {
   const ts = Date.now().toString().slice(-6);
   const rand = Math.floor(Math.random() * 900 + 100);
   return `${prefix}-${ts}${rand}`;
+}
+
+/** Sequential GRN like GRN-01, GRN-02… (only counts numeric suffixes). */
+export async function generateGRNNumber(db: DbClient = prisma) {
+  const receipts = await db.materialReceipt.findMany({
+    where: { grnNumber: { startsWith: "GRN-" } },
+    select: { grnNumber: true },
+  });
+
+  let max = 0;
+  for (const receipt of receipts) {
+    const match = /^GRN-(\d+)$/.exec(receipt.grnNumber);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n)) max = Math.max(max, n);
+    }
+  }
+
+  return `GRN-${String(max + 1).padStart(2, "0")}`;
+}
+
+export async function createMaterialReceiptForStock(
+  db: DbClient,
+  stock: {
+    id: number;
+    serialNumber: string;
+    modelNumber: string;
+    oemSupplier: string;
+    materialType: string;
+    description?: string | null;
+    receivedDate: Date;
+    poNumber?: string | null;
+    remarks?: string | null;
+    quantity: number;
+  },
+  opts?: { receivedBy?: string; grnNumber?: string; remarks?: string }
+) {
+  const grnNumber = opts?.grnNumber || (await generateGRNNumber(db));
+
+  return db.materialReceipt.create({
+    data: {
+      grnNumber,
+      receivedDate: stock.receivedDate,
+      supplierOem: stock.oemSupplier || "Unknown",
+      materialDescription: stock.description || stock.modelNumber,
+      modelNumber: stock.modelNumber,
+      serialNumber: stock.serialNumber,
+      quantity: stock.quantity || 1,
+      materialType: stock.materialType,
+      receivedBy: opts?.receivedBy || "Admin",
+      poNumber: stock.poNumber || null,
+      remarks: opts?.remarks ?? stock.remarks ?? null,
+      stockMasterId: stock.id,
+    },
+  });
 }
 
 export async function logMovement(params: {

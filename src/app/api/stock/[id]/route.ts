@@ -31,36 +31,61 @@ export async function PUT(request: NextRequest, { params }: Params) {
       }
     }
 
-    const stock = await prisma.stockMaster.update({
-      where: { id },
-      include: { images: { orderBy: { sortOrder: "asc" } } },
-      data: {
-        ...(body.materialType !== undefined && { materialType: body.materialType }),
-        ...(body.oemSupplier !== undefined && { oemSupplier: body.oemSupplier }),
-        ...(body.make !== undefined && { make: body.make }),
-        ...(body.modelNumber !== undefined && { modelNumber: body.modelNumber }),
-        ...(body.serialNumber !== undefined && { serialNumber: body.serialNumber }),
-        ...(body.description !== undefined && { description: body.description }),
-        ...(body.category !== undefined && { category: body.category }),
-        ...(body.receivedDate !== undefined && { receivedDate: new Date(body.receivedDate) }),
-        ...(body.warrantyStatus !== undefined && { warrantyStatus: body.warrantyStatus }),
-        ...(body.poNumber !== undefined && { poNumber: body.poNumber }),
-        ...(body.purchaseCost !== undefined && { purchaseCost: Number(body.purchaseCost) }),
-        ...(body.currentStatus !== undefined && { currentStatus: body.currentStatus }),
-        ...(body.currentHolder !== undefined && { currentHolder: body.currentHolder }),
-        ...(body.location !== undefined && { location: body.location }),
-        ...(body.remarks !== undefined && { remarks: body.remarks }),
-        ...(body.quantity !== undefined && { quantity: Number(body.quantity) }),
-        ...(body.quantityUnit !== undefined && { quantityUnit: body.quantityUnit }),
-        ...(body.purpose !== undefined && { purpose: body.purpose }),
-        ...(body.commercialInvoiceNo !== undefined && { commercialInvoiceNo: body.commercialInvoiceNo }),
-        ...(body.commercialInvoiceDate !== undefined && {
-          commercialInvoiceDate: body.commercialInvoiceDate ? new Date(body.commercialInvoiceDate) : null,
-        }),
-        ...(body.awbNumber !== undefined && { awbNumber: body.awbNumber }),
-        ...(body.workingCondition !== undefined && { workingCondition: body.workingCondition }),
-        ...(body.partRole !== undefined && { partRole: body.partRole || null }),
-      },
+    const stock = await prisma.$transaction(async (tx) => {
+      const updated = await tx.stockMaster.update({
+        where: { id },
+        include: {
+          images: { orderBy: { sortOrder: "asc" } },
+          receipt: { select: { grnNumber: true } },
+        },
+        data: {
+          ...(body.materialType !== undefined && { materialType: body.materialType }),
+          ...(body.oemSupplier !== undefined && { oemSupplier: body.oemSupplier }),
+          ...(body.make !== undefined && { make: body.make }),
+          ...(body.modelNumber !== undefined && { modelNumber: body.modelNumber }),
+          ...(body.serialNumber !== undefined && { serialNumber: body.serialNumber }),
+          ...(body.description !== undefined && { description: body.description }),
+          ...(body.category !== undefined && { category: body.category }),
+          ...(body.receivedDate !== undefined && { receivedDate: new Date(body.receivedDate) }),
+          ...(body.warrantyStatus !== undefined && { warrantyStatus: body.warrantyStatus }),
+          ...(body.poNumber !== undefined && { poNumber: body.poNumber }),
+          ...(body.purchaseCost !== undefined && { purchaseCost: Number(body.purchaseCost) }),
+          ...(body.currentStatus !== undefined && { currentStatus: body.currentStatus }),
+          ...(body.currentHolder !== undefined && { currentHolder: body.currentHolder }),
+          ...(body.location !== undefined && { location: body.location }),
+          ...(body.remarks !== undefined && { remarks: body.remarks }),
+          ...(body.quantity !== undefined && { quantity: Number(body.quantity) }),
+          ...(body.quantityUnit !== undefined && { quantityUnit: body.quantityUnit }),
+          ...(body.purpose !== undefined && { purpose: body.purpose }),
+          ...(body.commercialInvoiceNo !== undefined && { commercialInvoiceNo: body.commercialInvoiceNo }),
+          ...(body.commercialInvoiceDate !== undefined && {
+            commercialInvoiceDate: body.commercialInvoiceDate ? new Date(body.commercialInvoiceDate) : null,
+          }),
+          ...(body.awbNumber !== undefined && { awbNumber: body.awbNumber }),
+          ...(body.workingCondition !== undefined && { workingCondition: body.workingCondition }),
+          ...(body.partRole !== undefined && { partRole: body.partRole || null }),
+        },
+      });
+
+      // Keep linked GRN receipt in sync with stock identity fields
+      if (
+        body.serialNumber !== undefined ||
+        body.modelNumber !== undefined ||
+        body.oemSupplier !== undefined ||
+        body.poNumber !== undefined
+      ) {
+        await tx.materialReceipt.updateMany({
+          where: { stockMasterId: id },
+          data: {
+            ...(body.serialNumber !== undefined && { serialNumber: body.serialNumber }),
+            ...(body.modelNumber !== undefined && { modelNumber: body.modelNumber }),
+            ...(body.oemSupplier !== undefined && { supplierOem: body.oemSupplier }),
+            ...(body.poNumber !== undefined && { poNumber: body.poNumber }),
+          },
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json(serializeStock(stock));

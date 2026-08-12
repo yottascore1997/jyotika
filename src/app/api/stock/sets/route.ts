@@ -9,7 +9,10 @@ export async function GET() {
       include: {
         items: {
           orderBy: { id: "asc" },
-          include: { images: { orderBy: { sortOrder: "asc" } } },
+          include: {
+            images: { orderBy: { sortOrder: "asc" } },
+            receipt: { select: { grnNumber: true } },
+          },
         },
       },
       orderBy: { updatedAt: "desc" },
@@ -27,7 +30,11 @@ export async function POST(request: NextRequest) {
     const result = await createStockSet(body);
     const full = await prisma.stockSet.findUnique({
       where: { id: result.stockSet.id },
-      include: { items: true },
+      include: {
+        items: {
+          include: { receipt: { select: { grnNumber: true } } },
+        },
+      },
     });
     return NextResponse.json(serializeStockSet(full!), { status: 201 });
   } catch (error) {
