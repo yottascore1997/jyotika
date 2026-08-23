@@ -446,7 +446,7 @@ export default function StockPage() {
                     setSingleForm({
                       ...singleForm,
                       partRole: unit.value,
-                      materialType: unit.value === "Accessory" ? "Accessory" : singleForm.materialType || "Equipment",
+                      materialType: singleForm.materialType || "Equipment",
                     })
                   }
                   className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition ${
