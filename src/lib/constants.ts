@@ -31,7 +31,8 @@ export const INWARD_STOCK_STATUSES = [
 export const STOCK_UNIT_TYPES = [
   { value: "Main Unit - Display", label: "Monitor", hint: "Main display / base unit" },
   { value: "Probe", label: "Probe", hint: "Probe / camera unit" },
-  { value: "Accessory", label: "Accessory", hint: "Cable, case, or accessory" },
+  // Temporarily hidden — re-enable when accessories flow is needed
+  // { value: "Accessory", label: "Accessory", hint: "Cable, case, or accessory" },
 ] as const;
 
 export const STOCK_HOLDERS = [

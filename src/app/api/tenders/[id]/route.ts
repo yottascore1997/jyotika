@@ -31,16 +31,42 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     const body = await request.json();
+    const tenderBidNo =
+      body.tenderBidNo !== undefined
+        ? String(body.tenderBidNo).trim()
+        : existing.tenderBidNo;
+
+    if (!tenderBidNo) {
+      return NextResponse.json({ error: "Tender bid no is required" }, { status: 400 });
+    }
+
+    if (tenderBidNo !== existing.tenderBidNo) {
+      const duplicate = await prisma.tender.findFirst({ where: { tenderBidNo } });
+      if (duplicate) {
+        return NextResponse.json(
+          { error: `Tender bid no "${tenderBidNo}" already exists` },
+          { status: 409 }
+        );
+      }
+    }
+
     const tender = await prisma.tender.update({
       where: { id },
       data: {
-        organizationName: body.organizationName ?? existing.organizationName,
-        location: body.location ?? existing.location,
-        tenderBidNo: body.tenderBidNo ?? existing.tenderBidNo,
+        organizationName:
+          body.organizationName !== undefined
+            ? String(body.organizationName).trim()
+            : existing.organizationName,
+        location:
+          body.location !== undefined ? String(body.location).trim() : existing.location,
+        tenderBidNo,
         tenderSubmittedDate: body.tenderSubmittedDate
           ? new Date(body.tenderSubmittedDate)
           : existing.tenderSubmittedDate,
-        quotedProduct: body.quotedProduct ?? existing.quotedProduct,
+        quotedProduct:
+          body.quotedProduct !== undefined
+            ? String(body.quotedProduct).trim()
+            : existing.quotedProduct,
         orderValue: body.orderValue !== undefined ? Number(body.orderValue) : existing.orderValue,
         status: body.status ?? existing.status,
         statusAsOnDate: body.statusAsOnDate ?? existing.statusAsOnDate,

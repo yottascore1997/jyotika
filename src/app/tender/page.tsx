@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Pencil, Trash2, Eye, Trophy, Ban, FileX, ClipboardCheck } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -71,6 +71,7 @@ export default function TenderPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<TenderForm>(emptyForm());
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [existingDocs, setExistingDocs] = useState<TenderDocumentRecord[]>([]);
   const [pendingDocs, setPendingDocs] = useState<PendingTenderDocument[]>([]);
   const [removedDocIds, setRemovedDocIds] = useState<number[]>([]);
@@ -173,19 +174,27 @@ export default function TenderPage() {
   };
 
   const save = async () => {
-    if (saving) return;
-    if (!form.organizationName || !form.tenderBidNo || !form.quotedProduct) {
+    if (savingRef.current) return;
+    if (!form.organizationName.trim() || !form.tenderBidNo.trim() || !form.quotedProduct.trim()) {
       alert("Organization name, tender bid no, and quoted product are required");
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        organizationName: form.organizationName.trim(),
+        tenderBidNo: form.tenderBidNo.trim(),
+        quotedProduct: form.quotedProduct.trim(),
+        location: form.location.trim(),
+      };
       const url = editId ? `/api/tenders/${editId}` : "/api/tenders";
       const res = await fetch(url, {
         method: editId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         alert((await res.json()).error);
@@ -201,6 +210,7 @@ export default function TenderPage() {
         alert(error instanceof Error ? error.message : "Failed to save documents");
       }
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

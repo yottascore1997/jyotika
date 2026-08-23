@@ -18,23 +18,34 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const organizationName = String(body.organizationName || "").trim();
+    const tenderBidNo = String(body.tenderBidNo || "").trim();
+    const quotedProduct = String(body.quotedProduct || "").trim();
 
-    if (!body.organizationName || !body.tenderBidNo || !body.quotedProduct) {
+    if (!organizationName || !tenderBidNo || !quotedProduct) {
       return NextResponse.json(
         { error: "Organization name, tender bid no, and quoted product are required" },
         { status: 400 }
       );
     }
 
+    const existing = await prisma.tender.findFirst({ where: { tenderBidNo } });
+    if (existing) {
+      return NextResponse.json(
+        { error: `Tender bid no "${tenderBidNo}" already exists` },
+        { status: 409 }
+      );
+    }
+
     const tender = await prisma.tender.create({
       data: {
-        organizationName: body.organizationName,
-        location: body.location || "",
-        tenderBidNo: body.tenderBidNo,
+        organizationName,
+        location: String(body.location || "").trim(),
+        tenderBidNo,
         tenderSubmittedDate: body.tenderSubmittedDate
           ? new Date(body.tenderSubmittedDate)
           : new Date(),
-        quotedProduct: body.quotedProduct,
+        quotedProduct,
         orderValue: Number(body.orderValue) || 0,
         status: body.status || "Tender Filled Up",
         statusAsOnDate: body.statusAsOnDate || "",

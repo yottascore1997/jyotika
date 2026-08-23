@@ -286,20 +286,23 @@ export default function StockPage() {
     );
   };
 
-  const buildAccessoryItems = (): SetItemForm[] =>
-    selectedAccessories.map((name, index) => ({
-      ...createSetItem(completeSetForm, "Accessory"),
-      serialNumber: `ACC-${Date.now().toString(36).toUpperCase()}-${(index + 1).toString().padStart(2, "0")}`,
-      modelNumber: name,
-      materialType: "Accessory",
-      category: "Accessories",
-      quantity: 1,
-      remarks: "From accessories checklist",
-    }));
+  // Temporarily unused while accessories checklist is disabled
+  // const buildAccessoryItems = (): SetItemForm[] =>
+  //   selectedAccessories.map((name, index) => ({
+  //     ...createSetItem(completeSetForm, "Accessory"),
+  //     serialNumber: `ACC-${Date.now().toString(36).toUpperCase()}-${(index + 1).toString().padStart(2, "0")}`,
+  //     modelNumber: name,
+  //     materialType: "Accessory",
+  //     category: "Accessories",
+  //     quantity: 1,
+  //     remarks: "From accessories checklist",
+  //   }));
 
   const save = async () => {
     if (addMode === "set") {
-      const items = [...setItemRows, ...buildAccessoryItems()];
+      // Accessories temporarily disabled — only save main units / probes
+      const items = [...setItemRows];
+      // const items = [...setItemRows, ...buildAccessoryItems()];
       const res = await fetch("/api/stock/sets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -432,7 +435,7 @@ export default function StockPage() {
         <div className="mb-5 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-white p-4">
           <p className="mb-1 text-xs font-bold uppercase tracking-wider text-blue-600">Step 1</p>
           <label className="mb-3 block text-sm font-bold text-slate-800">Select Unit Type *</label>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {STOCK_UNIT_TYPES.map((unit) => {
               const selected = (singleForm.partRole || "Main Unit - Display") === unit.value;
               return (

@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import {
-  ACCESSORIES_CHECKLIST,
+  // ACCESSORIES_CHECKLIST, // temporarily unused with accessories section commented out
   CATEGORIES,
   INWARD_PURPOSES,
   INWARD_STOCK_STATUSES,
@@ -363,6 +363,7 @@ export default function AddSetForm({
         </div>
       </Section>
 
+      {/* Accessories checklist temporarily disabled
       <Section
         step="Step 4"
         title="Accessories Checklist"
@@ -428,17 +429,11 @@ export default function AddSetForm({
           </div>
         )}
       </Section>
+      */}
 
       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
         <span className="font-semibold text-slate-800">{items.length} unit(s)</span>
-        {" + "}
-        <span className="font-semibold text-emerald-700">
-          {selectedAccessories.length} accessor{selectedAccessories.length === 1 ? "y" : "ies"}
-        </span>
-        {" = "}
-        <span className="font-bold text-blue-700">
-          {items.length + selectedAccessories.length} items in set
-        </span>
+        <span className="font-bold text-blue-700"> in set</span>
       </div>
     </div>
   );
