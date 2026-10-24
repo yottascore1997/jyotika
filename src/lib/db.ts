@@ -1,14 +1,59 @@
+import fs from "fs";
+import path from "path";
 import { Prisma, PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+// Ensure DATABASE_URL is available even if dev server started before .env existed
+if (!process.env.DATABASE_URL) {
+  try {
+    const envPath = path.join(process.cwd(), ".env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const idx = trimmed.indexOf("=");
+          if (idx !== -1) {
+            const k = trimmed.slice(0, idx).trim();
+            let v = trimmed.slice(idx + 1).trim();
+            if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+              v = v.slice(1, -1);
+            }
+            if (!process.env[k]) {
+              process.env[k] = v;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Could not load .env in db.ts:", err);
+  }
+}
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient & { _initializedWithUrl?: string };
+};
+
+const currentDbUrl = process.env.DATABASE_URL;
+
+if (
+  !globalForPrisma.prisma ||
+  globalForPrisma.prisma._initializedWithUrl !== currentDbUrl
+) {
+  if (globalForPrisma.prisma) {
+    try {
+      globalForPrisma.prisma.$disconnect();
+    } catch {}
+  }
+  const client = new PrismaClient({
+    datasources: currentDbUrl ? { db: { url: currentDbUrl } } : undefined,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
+  }) as PrismaClient & { _initializedWithUrl?: string };
+  client._initializedWithUrl = currentDbUrl;
+  globalForPrisma.prisma = client;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = globalForPrisma.prisma;
 
 const CONNECTION_ERROR_CODES = new Set(["P1001", "P1008", "P1017", "P2024"]);
 
