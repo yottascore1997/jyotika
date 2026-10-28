@@ -372,3 +372,50 @@ model TenderDocument {
   @@unique([tenderId, docType])
   @@index([tenderId])
 }
+
+model Quotation {
+  id               Int       @id @default(autoincrement())
+  quotationNumber  String    @unique
+  quotationDate    DateTime
+  customerName     String
+  salesEngineer    String
+  customerContact  String?
+  productModel     String
+  quotationAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  region           String?
+  location         String?
+  quotationMadeBy  String?
+  orderStatus      String    @default("Open")
+  followUpStatus   String    @default("Not Started")
+  lastFollowUpDate DateTime?
+  nextFollowUpDate DateTime?
+  nextAction       String?   @db.Text
+  followUpRemarks  String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  followUps QuotationFollowUp[]
+
+  @@index([orderStatus])
+  @@index([followUpStatus])
+  @@index([salesEngineer])
+  @@index([quotationDate])
+  @@index([customerName])
+}
+
+model QuotationFollowUp {
+  id               Int       @id @default(autoincrement())
+  quotationId      Int
+  quotation        Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  followUpDate     DateTime  @default(now())
+  followUpStatus   String
+  orderStatus      String?
+  nextFollowUpDate DateTime?
+  nextAction       String?   @db.Text
+  remarks          String    @db.Text
+  updatedBy        String?
+  createdAt        DateTime  @default(now())
+
+  @@index([quotationId])
+  @@index([followUpDate])
+}

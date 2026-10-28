@@ -36,6 +36,17 @@ const statusStyles: Record<string, string> = {
   "Commercially Disqualified": "bg-amber-50 text-amber-700 ring-amber-600/20",
   "Tender Canceled": "bg-rose-50 text-rose-700 ring-rose-600/20",
   "Tender Filled Up": "bg-sky-50 text-sky-700 ring-sky-600/20",
+  Open: "bg-blue-50 text-blue-700 ring-blue-600/20",
+  Won: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  Lost: "bg-rose-50 text-rose-700 ring-rose-600/20",
+  "Not Started": "bg-slate-100 text-slate-700 ring-slate-500/20",
+  "Follow-up Pending": "bg-amber-50 text-amber-700 ring-amber-600/20",
+  "Customer Contacted": "bg-sky-50 text-sky-700 ring-sky-600/20",
+  "Awaiting Customer Response": "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
+  "Technical Clarification Required": "bg-purple-50 text-purple-700 ring-purple-600/20",
+  "Commercial Negotiation": "bg-teal-50 text-teal-700 ring-teal-600/20",
+  "Revised Quotation Required": "bg-orange-50 text-orange-700 ring-orange-600/20",
+  "On Hold": "bg-yellow-50 text-yellow-800 ring-yellow-600/20",
 };
 
 export default function StatusBadge({

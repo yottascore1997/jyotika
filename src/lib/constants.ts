@@ -184,3 +184,29 @@ export const TENDER_TYPES = ["Standard", "Open"] as const;
 export type StockStatus = (typeof STOCK_STATUSES)[number];
 export type StockHolder = (typeof STOCK_HOLDERS)[number];
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
+
+export const QUOTATION_ORDER_STATUSES = ["Open", "Won", "Lost"] as const;
+
+export const QUOTATION_FOLLOWUP_STATUSES = [
+  "Not Started",
+  "Follow-up Pending",
+  "Customer Contacted",
+  "Awaiting Customer Response",
+  "Technical Clarification Required",
+  "Commercial Negotiation",
+  "Revised Quotation Required",
+  "On Hold",
+] as const;
+
+export const QUOTATION_REGIONS = [
+  "North",
+  "South",
+  "East",
+  "West",
+  "Central",
+  "Pan India",
+  "International / Export",
+] as const;
+
+export type QuotationOrderStatus = (typeof QUOTATION_ORDER_STATUSES)[number];
+export type QuotationFollowUpStatus = (typeof QUOTATION_FOLLOWUP_STATUSES)[number];

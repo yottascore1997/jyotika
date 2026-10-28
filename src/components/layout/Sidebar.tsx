@@ -18,11 +18,13 @@ import {
   Search,
   Box,
   LogOut,
+  FileSpreadsheet,
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/stock", label: "Stock Master", icon: Package },
+  { href: "/quotations", label: "Quotation Management", icon: FileSpreadsheet },
   { href: "/services", label: "Service History", icon: History },
   { href: "/po", label: "PO Management", icon: FileText },
   { href: "/tender", label: "Tender Management", icon: ClipboardList },

@@ -456,3 +456,68 @@ export function serializeTender(tender: {
     documents: tender.documents?.map(serializeTenderDocument) ?? [],
   };
 }
+
+export function serializeQuotationFollowUp(followUp: {
+  id: number;
+  quotationId: number;
+  followUpDate: Date;
+  followUpStatus: string;
+  orderStatus: string | null;
+  nextFollowUpDate: Date | null;
+  nextAction: string | null;
+  remarks: string;
+  updatedBy: string | null;
+  createdAt: Date;
+}) {
+  return {
+    ...followUp,
+    followUpDate: followUp.followUpDate.toISOString(),
+    nextFollowUpDate: followUp.nextFollowUpDate?.toISOString() ?? null,
+    createdAt: followUp.createdAt.toISOString(),
+  };
+}
+
+export function serializeQuotation(quotation: {
+  id: number;
+  quotationNumber: string;
+  quotationDate: Date;
+  customerName: string;
+  salesEngineer: string;
+  customerContact: string | null;
+  productModel: string;
+  quotationAmount: unknown;
+  region: string | null;
+  location: string | null;
+  quotationMadeBy: string | null;
+  orderStatus: string;
+  followUpStatus: string;
+  lastFollowUpDate: Date | null;
+  nextFollowUpDate: Date | null;
+  nextAction: string | null;
+  followUpRemarks: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  followUps?: Array<{
+    id: number;
+    quotationId: number;
+    followUpDate: Date;
+    followUpStatus: string;
+    orderStatus: string | null;
+    nextFollowUpDate: Date | null;
+    nextAction: string | null;
+    remarks: string;
+    updatedBy: string | null;
+    createdAt: Date;
+  }>;
+}) {
+  return {
+    ...quotation,
+    quotationAmount: toNumber(quotation.quotationAmount),
+    quotationDate: quotation.quotationDate.toISOString(),
+    lastFollowUpDate: quotation.lastFollowUpDate?.toISOString() ?? null,
+    nextFollowUpDate: quotation.nextFollowUpDate?.toISOString() ?? null,
+    createdAt: quotation.createdAt.toISOString(),
+    updatedAt: quotation.updatedAt.toISOString(),
+    followUps: quotation.followUps?.map(serializeQuotationFollowUp) ?? [],
+  };
+}
