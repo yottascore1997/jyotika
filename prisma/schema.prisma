@@ -378,10 +378,15 @@ model Quotation {
   quotationNumber  String    @unique
   quotationDate    DateTime
   customerName     String
-  salesEngineer    String
+  companyName      String?
+  customerPhone    String?
+  customerEmail    String?
   customerContact  String?
+  salesEngineer    String
   productModel     String
   quotationAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  discountAmount   Decimal?  @default(0) @db.Decimal(14, 2)
+  poAmount         Decimal?  @default(0) @db.Decimal(14, 2)
   region           String?
   location         String?
   quotationMadeBy  String?
@@ -401,6 +406,7 @@ model Quotation {
   @@index([salesEngineer])
   @@index([quotationDate])
   @@index([customerName])
+  @@index([companyName])
 }
 
 model QuotationFollowUp {

@@ -482,10 +482,15 @@ export function serializeQuotation(quotation: {
   quotationNumber: string;
   quotationDate: Date;
   customerName: string;
+  companyName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  customerContact?: string | null;
   salesEngineer: string;
-  customerContact: string | null;
   productModel: string;
   quotationAmount: unknown;
+  discountAmount?: unknown;
+  poAmount?: unknown;
   region: string | null;
   location: string | null;
   quotationMadeBy: string | null;
@@ -512,7 +517,12 @@ export function serializeQuotation(quotation: {
 }) {
   return {
     ...quotation,
+    companyName: quotation.companyName ?? null,
+    customerPhone: quotation.customerPhone ?? null,
+    customerEmail: quotation.customerEmail ?? null,
     quotationAmount: toNumber(quotation.quotationAmount),
+    discountAmount: toNumber(quotation.discountAmount),
+    poAmount: toNumber(quotation.poAmount),
     quotationDate: quotation.quotationDate.toISOString(),
     lastFollowUpDate: quotation.lastFollowUpDate?.toISOString() ?? null,
     nextFollowUpDate: quotation.nextFollowUpDate?.toISOString() ?? null,

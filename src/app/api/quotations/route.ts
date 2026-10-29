@@ -18,8 +18,12 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { quotationNumber: { contains: search } },
         { customerName: { contains: search } },
+        { companyName: { contains: search } },
+        { customerPhone: { contains: search } },
+        { customerEmail: { contains: search } },
         { productModel: { contains: search } },
         { salesEngineer: { contains: search } },
+        { region: { contains: search } },
         { location: { contains: search } },
         { quotationMadeBy: { contains: search } },
       ];
@@ -81,6 +85,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const quotationNumber = String(body.quotationNumber || "").trim();
     const customerName = String(body.customerName || "").trim();
+    const companyName = body.companyName ? String(body.companyName).trim() : null;
+    const customerPhone = body.customerPhone ? String(body.customerPhone).trim() : null;
+    const customerEmail = body.customerEmail ? String(body.customerEmail).trim() : null;
     const salesEngineer = String(body.salesEngineer || "").trim();
     const productModel = String(body.productModel || "").trim();
 
@@ -88,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Quotation Number is required" }, { status: 400 });
     }
     if (!customerName) {
-      return NextResponse.json({ error: "Customer / Company Name is required" }, { status: 400 });
+      return NextResponse.json({ error: "Customer Name is required" }, { status: 400 });
     }
     if (!salesEngineer) {
       return NextResponse.json({ error: "Sales Engineer is required" }, { status: 400 });
@@ -109,11 +116,15 @@ export async function POST(request: NextRequest) {
     }
 
     const quotationDate = body.quotationDate ? new Date(body.quotationDate) : new Date();
-    const quotationAmount = body.quotationAmount ? Number(body.quotationAmount) : 0;
+    const quotationAmount = body.quotationAmount !== undefined && body.quotationAmount !== "" ? Number(body.quotationAmount) : 0;
+    const discountAmount = body.discountAmount !== undefined && body.discountAmount !== "" ? Number(body.discountAmount) : 0;
+    const poAmount = body.poAmount !== undefined && body.poAmount !== "" ? Number(body.poAmount) : 0;
     const region = body.region ? String(body.region).trim() : null;
     const location = body.location ? String(body.location).trim() : null;
     const quotationMadeBy = body.quotationMadeBy ? String(body.quotationMadeBy).trim() : null;
-    const customerContact = body.customerContact ? String(body.customerContact).trim() : null;
+    const customerContact = body.customerContact
+      ? String(body.customerContact).trim()
+      : [customerPhone, customerEmail].filter(Boolean).join(" | ") || null;
     const orderStatus = body.orderStatus || "Open";
     const followUpStatus = body.followUpStatus || "Not Started";
     const nextFollowUpDate = body.nextFollowUpDate ? new Date(body.nextFollowUpDate) : null;
@@ -126,10 +137,15 @@ export async function POST(request: NextRequest) {
         quotationNumber,
         quotationDate,
         customerName,
-        salesEngineer,
+        companyName,
+        customerPhone,
+        customerEmail,
         customerContact,
+        salesEngineer,
         productModel,
         quotationAmount,
+        discountAmount,
+        poAmount,
         region,
         location,
         quotationMadeBy,

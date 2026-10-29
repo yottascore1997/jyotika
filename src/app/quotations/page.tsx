@@ -5,14 +5,12 @@ import {
   FileSpreadsheet,
   Plus,
   Search,
-  Filter,
   Download,
   Calendar,
   AlertTriangle,
   Clock,
   CheckCircle2,
   XCircle,
-  HelpCircle,
   RefreshCw,
   Eye,
   Pencil,
@@ -23,11 +21,9 @@ import {
   MapPin,
   Building,
   Phone,
-  DollarSign,
-  ChevronDown,
-  ChevronUp,
-  BarChart3,
-  Sparkles,
+  Mail,
+  Receipt,
+  Tag,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -37,20 +33,14 @@ import {
   QUOTATION_FOLLOWUP_STATUSES,
   QUOTATION_REGIONS,
 } from "@/lib/constants";
-import { formatCurrency, formatDate, toInputDate } from "@/lib/utils";
-import { exportQuotationsToExcel } from "@/lib/excel-export";
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
+  formatINR,
+  formatDate,
+  toInputDate,
+  getFinancialYearString,
+  generateFinancialYearQuotationNumber,
+} from "@/lib/utils";
+import { exportQuotationsToExcel } from "@/lib/excel-export";
 
 type FollowUpHistory = {
   id: number;
@@ -70,10 +60,15 @@ type Quotation = {
   quotationNumber: string;
   quotationDate: string;
   customerName: string;
-  salesEngineer: string;
+  companyName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
   customerContact?: string | null;
+  salesEngineer: string;
   productModel: string;
   quotationAmount: number;
+  discountAmount?: number | null;
+  poAmount?: number | null;
   region?: string | null;
   location?: string | null;
   quotationMadeBy?: string | null;
@@ -92,10 +87,14 @@ type QuotationForm = {
   quotationNumber: string;
   quotationDate: string;
   customerName: string;
+  companyName: string;
+  customerPhone: string;
+  customerEmail: string;
   salesEngineer: string;
-  customerContact: string;
   productModel: string;
   quotationAmount: number | "";
+  discountAmount: number | "";
+  poAmount: number | "";
   region: string;
   location: string;
   quotationMadeBy: string;
@@ -106,14 +105,18 @@ type QuotationForm = {
   followUpRemarks: string;
 };
 
-const initialForm = (): QuotationForm => ({
-  quotationNumber: "",
+const initialForm = (defaultNumber = ""): QuotationForm => ({
+  quotationNumber: defaultNumber,
   quotationDate: new Date().toISOString().split("T")[0],
   customerName: "",
+  companyName: "",
+  customerPhone: "",
+  customerEmail: "",
   salesEngineer: "",
-  customerContact: "",
   productModel: "",
   quotationAmount: "",
+  discountAmount: "",
+  poAmount: "",
   region: "West",
   location: "",
   quotationMadeBy: "",
@@ -123,12 +126,6 @@ const initialForm = (): QuotationForm => ({
   nextAction: "",
   followUpRemarks: "",
 });
-
-const PIE_COLORS = {
-  Open: "#3B82F6",
-  Won: "#10B981",
-  Lost: "#F43F5E",
-};
 
 export default function QuotationManagementPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
@@ -144,7 +141,6 @@ export default function QuotationManagementPage() {
   const [quickPill, setQuickPill] = useState<"All" | "Open" | "Won" | "Lost" | "Overdue" | "DueToday">("All");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [showCharts, setShowCharts] = useState(false);
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -227,6 +223,8 @@ export default function QuotationManagementPage() {
   const analytics = useMemo(() => {
     const totalQuotations = quotations.length;
     let totalQuotationValue = 0;
+    let totalDiscountValue = 0;
+    let totalPoValue = 0;
     let openCount = 0;
     let openValue = 0;
     let wonCount = 0;
@@ -239,7 +237,11 @@ export default function QuotationManagementPage() {
 
     quotations.forEach((q) => {
       const val = Number(q.quotationAmount) || 0;
+      const disc = Number(q.discountAmount) || 0;
+      const poVal = Number(q.poAmount) || 0;
       totalQuotationValue += val;
+      totalDiscountValue += disc;
+      totalPoValue += poVal;
 
       if (q.orderStatus === "Won") {
         wonCount += 1;
@@ -250,7 +252,6 @@ export default function QuotationManagementPage() {
       } else {
         openCount += 1;
         openValue += val;
-        // In open orders, check follow-up status
         if (q.followUpStatus !== "On Hold") {
           pendingFollowUps += 1;
         }
@@ -260,11 +261,11 @@ export default function QuotationManagementPage() {
       if (isDueToday(q)) dueTodayFollowUps += 1;
     });
 
-    const winRate = totalQuotations > 0 ? Math.round((wonCount / totalQuotations) * 100) : 0;
-
     return {
       totalQuotations,
       totalQuotationValue,
+      totalDiscountValue,
+      totalPoValue,
       openCount,
       openValue,
       wonCount,
@@ -274,50 +275,21 @@ export default function QuotationManagementPage() {
       pendingFollowUps,
       overdueFollowUps,
       dueTodayFollowUps,
-      winRate,
     };
   }, [quotations, today]);
 
-  // Chart data calculations
-  const statusPieData = useMemo(() => {
-    return [
-      { name: "Open", value: analytics.openCount, amount: analytics.openValue, color: PIE_COLORS.Open },
-      { name: "Won", value: analytics.wonCount, amount: analytics.wonValue, color: PIE_COLORS.Won },
-      { name: "Lost", value: analytics.lostCount, amount: analytics.lostValue, color: PIE_COLORS.Lost },
-    ].filter((item) => item.value > 0);
-  }, [analytics]);
+  // Compute next financial year quotation number based on existing quotations
+  const computeNextQuotationNumber = (dateStr?: string) => {
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    const targetFY = getFinancialYearString(targetDate);
+    // Count how many quotations exist for this FY
+    const countInFY = quotations.filter((q) => {
+      const qFY = getFinancialYearString(q.quotationDate);
+      return qFY === targetFY;
+    }).length;
 
-  const engineerBarData = useMemo(() => {
-    const map = new Map<string, { engineer: string; totalQuotes: number; totalValue: number; wonQuotes: number; wonValue: number }>();
-    quotations.forEach((q) => {
-      const eng = q.salesEngineer || "Unassigned";
-      const existing = map.get(eng) || { engineer: eng, totalQuotes: 0, totalValue: 0, wonQuotes: 0, wonValue: 0 };
-      existing.totalQuotes += 1;
-      existing.totalValue += Number(q.quotationAmount) || 0;
-      if (q.orderStatus === "Won") {
-        existing.wonQuotes += 1;
-        existing.wonValue += Number(q.quotationAmount) || 0;
-      }
-      map.set(eng, existing);
-    });
-    return Array.from(map.values()).sort((a, b) => b.totalValue - a.totalValue);
-  }, [quotations]);
-
-  const monthlyTrendData = useMemo(() => {
-    const map = new Map<string, { month: string; value: number; count: number }>();
-    quotations.forEach((q) => {
-      const d = new Date(q.quotationDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const monthLabel = d.toLocaleString("default", { month: "short", year: "2-digit" });
-      const existing = map.get(key) || { month: monthLabel, value: 0, count: 0 };
-      existing.value += Number(q.quotationAmount) || 0;
-      existing.count += 1;
-      map.set(key, existing);
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map((entry) => entry[1]);
-  }, [quotations]);
+    return generateFinancialYearQuotationNumber(countInFY + 1, targetDate);
+  };
 
   // Filtered quotations list
   const filteredQuotations = useMemo(() => {
@@ -350,6 +322,9 @@ export default function QuotationManagementPage() {
         const query = search.toLowerCase();
         const num = (q.quotationNumber || "").toLowerCase();
         const cust = (q.customerName || "").toLowerCase();
+        const comp = (q.companyName || "").toLowerCase();
+        const phone = (q.customerPhone || "").toLowerCase();
+        const email = (q.customerEmail || "").toLowerCase();
         const prod = (q.productModel || "").toLowerCase();
         const eng = (q.salesEngineer || "").toLowerCase();
         const reg = (q.region || "").toLowerCase();
@@ -358,6 +333,9 @@ export default function QuotationManagementPage() {
         return (
           num.includes(query) ||
           cust.includes(query) ||
+          comp.includes(query) ||
+          phone.includes(query) ||
+          email.includes(query) ||
           prod.includes(query) ||
           eng.includes(query) ||
           reg.includes(query) ||
@@ -380,21 +358,13 @@ export default function QuotationManagementPage() {
     search,
   ]);
 
-  // Auto-generate next quotation number
-  const generateNewNumber = () => {
-    const year = new Date().getFullYear();
-    const count = quotations.length + 1;
-    const num = `QT-${year}-${String(count).padStart(3, "0")}`;
-    setFormData((prev) => ({ ...prev, quotationNumber: num }));
-  };
-
-  // Open Add modal
+  // Open Add modal with auto Financial Year Quotation number
   const handleOpenAdd = () => {
     setIsEditing(false);
     setActiveQuotationId(null);
-    const form = initialForm();
-    const year = new Date().getFullYear();
-    form.quotationNumber = `QT-${year}-${String(quotations.length + 1).padStart(3, "0")}`;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const defaultNumber = computeNextQuotationNumber(todayStr);
+    const form = initialForm(defaultNumber);
     setFormData(form);
     setFormError(null);
     setFormModalOpen(true);
@@ -407,16 +377,20 @@ export default function QuotationManagementPage() {
     setFormData({
       quotationNumber: q.quotationNumber,
       quotationDate: toInputDate(q.quotationDate),
-      customerName: q.customerName,
-      salesEngineer: q.salesEngineer,
-      customerContact: q.customerContact || "",
-      productModel: q.productModel,
-      quotationAmount: q.quotationAmount,
+      customerName: q.customerName || "",
+      companyName: q.companyName || "",
+      customerPhone: q.customerPhone || "",
+      customerEmail: q.customerEmail || "",
+      salesEngineer: q.salesEngineer || "",
+      productModel: q.productModel || "",
+      quotationAmount: q.quotationAmount ?? "",
+      discountAmount: q.discountAmount ?? "",
+      poAmount: q.poAmount ?? "",
       region: q.region || "West",
       location: q.location || "",
       quotationMadeBy: q.quotationMadeBy || "",
-      orderStatus: q.orderStatus,
-      followUpStatus: q.followUpStatus,
+      orderStatus: q.orderStatus || "Open",
+      followUpStatus: q.followUpStatus || "Not Started",
       nextFollowUpDate: toInputDate(q.nextFollowUpDate),
       nextAction: q.nextAction || "",
       followUpRemarks: q.followUpRemarks || "",
@@ -435,7 +409,7 @@ export default function QuotationManagementPage() {
       return;
     }
     if (!formData.customerName.trim()) {
-      setFormError("Customer / Company Name is required");
+      setFormError("Customer Name is required");
       return;
     }
     if (!formData.salesEngineer.trim()) {
@@ -447,7 +421,7 @@ export default function QuotationManagementPage() {
       return;
     }
     if (formData.quotationAmount === "" || Number(formData.quotationAmount) < 0) {
-      setFormError("Valid Quotation Amount is required");
+      setFormError("Valid QT Amount (INR) is required");
       return;
     }
 
@@ -462,6 +436,8 @@ export default function QuotationManagementPage() {
         body: JSON.stringify({
           ...formData,
           quotationAmount: Number(formData.quotationAmount),
+          discountAmount: formData.discountAmount === "" ? 0 : Number(formData.discountAmount),
+          poAmount: formData.poAmount === "" ? 0 : Number(formData.poAmount),
         }),
       });
 
@@ -522,7 +498,6 @@ export default function QuotationManagementPage() {
       setFollowUpModalOpen(false);
       fetchQuotations();
 
-      // If view modal was open, refresh view
       if (viewQuotation && viewQuotation.id === followUpTarget.id) {
         setViewQuotation(updated);
       }
@@ -537,7 +512,6 @@ export default function QuotationManagementPage() {
   const handleOpenView = async (q: Quotation) => {
     setViewQuotation(q);
     setViewModalOpen(true);
-    // Fetch full with followUps
     try {
       const res = await fetch(`/api/quotations/${q.id}`);
       if (res.ok) {
@@ -562,7 +536,7 @@ export default function QuotationManagementPage() {
     }
   };
 
-  // Export to Excel
+  // Export to Excel with separate columns
   const handleExport = () => {
     exportQuotationsToExcel(filteredQuotations, "Quotations_Management_Report");
   };
@@ -588,12 +562,10 @@ export default function QuotationManagementPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Visual Analytics button temporarily hidden as requested */}
-
           <button
             onClick={handleExport}
             className="inline-flex items-center gap-2 rounded-xl border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-            title="Download formatted Excel spreadsheet with Region, Location, and Quotation Made By columns"
+            title="Download formatted Excel spreadsheet with separate columns for Customer Name, Company, Mobile No, Email, Region, Location, QT Amount (INR), Discount Amount (INR), PO Amount (INR), and Quotation Made By as the last column"
           >
             <Download size={16} />
             Export to Excel
@@ -630,16 +602,16 @@ export default function QuotationManagementPage() {
           <p className="mt-1 text-[11px] font-medium text-slate-500">All recorded quotes</p>
         </div>
 
-        {/* Card 2: Total Quotation Value */}
+        {/* Card 2: Total Quotation Value (INR) */}
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-indigo-50/60 to-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Total Value</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">Total QT Value</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">
               <TrendingUp size={16} />
             </span>
           </div>
-          <p className="mt-2 text-xl font-black tracking-tight text-indigo-950 truncate" title={formatCurrency(analytics.totalQuotationValue)}>
-            {formatCurrency(analytics.totalQuotationValue)}
+          <p className="mt-2 text-xl font-black tracking-tight text-indigo-950 truncate" title={formatINR(analytics.totalQuotationValue)}>
+            {formatINR(analytics.totalQuotationValue)}
           </p>
           <p className="mt-1 text-[11px] font-medium text-indigo-600">Combined pipeline</p>
         </div>
@@ -663,7 +635,7 @@ export default function QuotationManagementPage() {
             </span>
           </div>
           <p className="mt-2 text-2xl font-black tracking-tight text-sky-950">{analytics.openCount}</p>
-          <p className="mt-1 text-[11px] font-medium text-sky-700 truncate">{formatCurrency(analytics.openValue)}</p>
+          <p className="mt-1 text-[11px] font-medium text-sky-700 truncate">{formatINR(analytics.openValue)}</p>
         </div>
 
         {/* Card 4: Won Quotations */}
@@ -685,7 +657,7 @@ export default function QuotationManagementPage() {
             </span>
           </div>
           <p className="mt-2 text-2xl font-black tracking-tight text-emerald-950">{analytics.wonCount}</p>
-          <p className="mt-1 text-[11px] font-semibold text-emerald-700 truncate">{formatCurrency(analytics.wonValue)}</p>
+          <p className="mt-1 text-[11px] font-semibold text-emerald-700 truncate">{formatINR(analytics.wonValue)}</p>
         </div>
 
         {/* Card 5: Lost Quotations */}
@@ -707,7 +679,7 @@ export default function QuotationManagementPage() {
             </span>
           </div>
           <p className="mt-2 text-2xl font-black tracking-tight text-rose-950">{analytics.lostCount}</p>
-          <p className="mt-1 text-[11px] font-medium text-rose-700 truncate">{formatCurrency(analytics.lostValue)}</p>
+          <p className="mt-1 text-[11px] font-medium text-rose-700 truncate">{formatINR(analytics.lostValue)}</p>
         </div>
 
         {/* Card 6: Pending Follow-ups */}
@@ -754,112 +726,7 @@ export default function QuotationManagementPage() {
         </div>
       </div>
 
-      {/* Visual Analytics Expandable Section */}
-      {showCharts && (
-        <div className="space-y-4 rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50/40 via-white to-white p-5 shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="text-blue-600" size={18} />
-              <h3 className="text-sm font-bold text-slate-800">Visual Quotation Performance Analytics</h3>
-            </div>
-            <span className="text-xs font-semibold text-slate-500">
-              Win Rate: <strong className="text-emerald-600">{analytics.winRate}%</strong>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {/* Chart 1: Order Status Breakdown */}
-            <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Quotations by Order Status</h4>
-              <div className="mt-2 h-56 w-full">
-                {statusPieData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={statusPieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={75}
-                        paddingAngle={5}
-                      >
-                        {statusPieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(val: any, name: any, item: any) => [
-                          `${val} quotes (${formatCurrency(item.payload.amount)})`,
-                          name,
-                        ]}
-                      />
-                      <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                    No quotations available
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Chart 2: Quotation Value by Month */}
-            <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Quotation Pipeline by Month</h4>
-              <div className="mt-2 h-56 w-full">
-                {monthlyTrendData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyTrendData}>
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis
-                        tick={{ fontSize: 11 }}
-                        tickFormatter={(v) => (v >= 100000 ? `${(v / 100000).toFixed(0)}L` : `${v}`)}
-                      />
-                      <Tooltip formatter={(v: any) => [formatCurrency(Number(v)), "Total Value"]} />
-                      <Bar dataKey="value" fill="#6366F1" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                    No trend data available
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Chart 3: Engineer-wise Summary */}
-            <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Engineer Performance</h4>
-              <div className="mt-2 h-56 w-full">
-                {engineerBarData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={engineerBarData} layout="vertical">
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis dataKey="engineer" type="category" tick={{ fontSize: 10 }} width={80} />
-                      <Tooltip
-                        formatter={(v: any, name: any) => [
-                          name === "totalValue" ? formatCurrency(Number(v)) : v,
-                          name === "totalValue" ? "Total Value" : "Quotes",
-                        ]}
-                      />
-                      <Bar dataKey="totalQuotes" fill="#3B82F6" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                    No engineer data available
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Search & Advanced Filtering Bar */}
+      {/* 2. Search & Filter Bar */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3">
           {/* Top row: Search and Quick Filter Pills */}
@@ -868,7 +735,7 @@ export default function QuotationManagementPage() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
               <input
                 type="text"
-                placeholder="Search by Quotation No, Customer, Product, Engineer, Location, Made By..."
+                placeholder="Search by Quotation No, Customer, Company, Mobile, Email, Product, Engineer, Location, Made By..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
@@ -1061,7 +928,7 @@ export default function QuotationManagementPage() {
         </div>
       </div>
 
-      {/* 3. Manage Quotations - Quotations Table */}
+      {/* 3. Manage Quotations - Distinct Separate Columns Table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-3">
           <div className="flex items-center gap-2">
@@ -1110,24 +977,52 @@ export default function QuotationManagementPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-100/70 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="border-b border-slate-200 bg-slate-100/70 text-[11px] font-bold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="px-4 py-3.5">Quotation No & Date</th>
-                  <th className="px-4 py-3.5">Customer / Company</th>
-                  <th className="px-4 py-3.5">Product / Model</th>
-                  <th className="px-4 py-3.5 text-right">Quotation Amount</th>
-                  <th className="px-4 py-3.5">Region & Location</th>
-                  <th className="px-4 py-3.5">Sales Engineer</th>
-                  <th className="px-4 py-3.5">Order Status</th>
-                  <th className="px-4 py-3.5">Follow-up Status</th>
-                  <th className="px-4 py-3.5">Next Follow-up</th>
-                  {/* Specifically requested last column */}
-                  <th className="px-4 py-3.5 bg-blue-50/50 text-blue-900">Quotation Made By</th>
-                  <th className="px-4 py-3.5 text-center">Actions</th>
+                  <th className="px-3.5 py-3.5">Quotation No & Date</th>
+                  {/* Separate Customer Name */}
+                  <th className="px-3.5 py-3.5">Customer Name</th>
+                  {/* Separate Company Name */}
+                  <th className="px-3.5 py-3.5">Company Name</th>
+                  {/* Separate Mobile No */}
+                  <th className="px-3.5 py-3.5">Mobile No</th>
+                  {/* Separate Email */}
+                  <th className="px-3.5 py-3.5">Email</th>
+                  {/* Product / Model */}
+                  <th className="px-3.5 py-3.5">Product / Model</th>
+                  {/* QT Amount (INR) */}
+                  <th className="px-3.5 py-3.5 text-right font-black text-slate-900 bg-slate-50/60">
+                    QT Amount (INR)
+                  </th>
+                  {/* Discount Amount (INR) */}
+                  <th className="px-3.5 py-3.5 text-right font-bold text-slate-700">
+                    Discount Amount (INR)
+                  </th>
+                  {/* PO Amount (INR) */}
+                  <th className="px-3.5 py-3.5 text-right font-bold text-slate-700">
+                    PO Amount (INR)
+                  </th>
+                  {/* Separate Region */}
+                  <th className="px-3.5 py-3.5">Region</th>
+                  {/* Separate Location */}
+                  <th className="px-3.5 py-3.5">Location</th>
+                  {/* Sales Engineer */}
+                  <th className="px-3.5 py-3.5">Sales Engineer</th>
+                  {/* Order Status */}
+                  <th className="px-3.5 py-3.5">Order Status</th>
+                  {/* Follow-up Status */}
+                  <th className="px-3.5 py-3.5">Follow-up Status</th>
+                  {/* Next Follow-up */}
+                  <th className="px-3.5 py-3.5">Next Follow-up</th>
+                  {/* Quotation Made By (LAST COLUMN as requested) */}
+                  <th className="px-3.5 py-3.5 bg-blue-50 text-blue-950 font-bold border-l border-blue-100">
+                    Quotation Made By
+                  </th>
+                  <th className="px-3.5 py-3.5 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 font-medium">
                 {filteredQuotations.map((q) => {
                   const overdue = isOverdue(q);
                   const dueToday = isDueToday(q);
@@ -1144,62 +1039,112 @@ export default function QuotationManagementPage() {
                       }`}
                     >
                       {/* Quotation No & Date */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenView(q)}
-                            className="font-bold text-blue-600 hover:underline hover:text-blue-800"
-                          >
-                            {q.quotationNumber}
-                          </button>
-                        </div>
+                      <td className="px-3.5 py-3.5">
+                        <button
+                          onClick={() => handleOpenView(q)}
+                          className="font-bold text-blue-600 hover:underline hover:text-blue-800"
+                        >
+                          {q.quotationNumber}
+                        </button>
                         <div className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400">
                           <Calendar size={11} />
                           {formatDate(q.quotationDate)}
                         </div>
                       </td>
 
-                      {/* Customer / Company */}
-                      <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-900">{q.customerName}</p>
-                        {q.customerContact && (
-                          <p className="mt-0.5 max-w-[200px] truncate text-[11px] text-slate-500" title={q.customerContact}>
-                            {q.customerContact}
-                          </p>
+                      {/* Separate Customer Name */}
+                      <td className="px-3.5 py-3.5">
+                        <span className="font-bold text-slate-900">{q.customerName || "—"}</span>
+                      </td>
+
+                      {/* Separate Company Name */}
+                      <td className="px-3.5 py-3.5">
+                        <span className="text-slate-800 font-semibold">{q.companyName || "—"}</span>
+                      </td>
+
+                      {/* Separate Mobile No */}
+                      <td className="px-3.5 py-3.5">
+                        {q.customerPhone ? (
+                          <div className="flex items-center gap-1 text-slate-700">
+                            <Phone size={12} className="text-slate-400" />
+                            <span>{q.customerPhone}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Separate Email */}
+                      <td className="px-3.5 py-3.5">
+                        {q.customerEmail ? (
+                          <div className="flex items-center gap-1 text-slate-700">
+                            <Mail size={12} className="text-slate-400" />
+                            <span>{q.customerEmail}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
 
                       {/* Product / Model */}
-                      <td className="px-4 py-3.5">
-                        <p className="font-semibold text-slate-800 max-w-[220px] truncate" title={q.productModel}>
+                      <td className="px-3.5 py-3.5">
+                        <span className="font-semibold text-slate-800 max-w-[200px] truncate block" title={q.productModel}>
                           {q.productModel}
-                        </p>
-                      </td>
-
-                      {/* Quotation Amount */}
-                      <td className="px-4 py-3.5 text-right">
-                        <span className="font-black text-slate-900">
-                          {formatCurrency(q.quotationAmount)}
                         </span>
                       </td>
 
-                      {/* Region & Location */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1 text-slate-700 font-medium">
-                          <MapPin size={12} className="text-slate-400" />
-                          <span>{q.region || "West"}</span>
-                        </div>
-                        {q.location && (
-                          <p className="text-[11px] text-slate-400 truncate max-w-[130px]" title={q.location}>
-                            {q.location}
-                          </p>
+                      {/* QT Amount (INR) */}
+                      <td className="px-3.5 py-3.5 text-right bg-slate-50/40">
+                        <span className="font-black text-slate-900">
+                          {formatINR(q.quotationAmount)}
+                        </span>
+                      </td>
+
+                      {/* Discount Amount (INR) */}
+                      <td className="px-3.5 py-3.5 text-right">
+                        {q.discountAmount && q.discountAmount > 0 ? (
+                          <span className="font-semibold text-rose-600">
+                            {formatINR(q.discountAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      {/* PO Amount (INR) */}
+                      <td className="px-3.5 py-3.5 text-right">
+                        {q.poAmount && q.poAmount > 0 ? (
+                          <span className="font-black text-emerald-700">
+                            {formatINR(q.poAmount)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Separate Region */}
+                      <td className="px-3.5 py-3.5">
+                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          {q.region || "West"}
+                        </span>
+                      </td>
+
+                      {/* Separate Location */}
+                      <td className="px-3.5 py-3.5">
+                        {q.location ? (
+                          <div className="flex items-center gap-1 text-slate-700">
+                            <MapPin size={12} className="text-slate-400" />
+                            <span>{q.location}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
 
                       {/* Sales Engineer */}
-                      <td className="px-4 py-3.5">
+                      <td className="px-3.5 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700">
                             {q.salesEngineer ? q.salesEngineer[0].toUpperCase() : "E"}
                           </span>
                           <span className="font-semibold text-slate-800">{q.salesEngineer}</span>
@@ -1207,24 +1152,24 @@ export default function QuotationManagementPage() {
                       </td>
 
                       {/* Order Status */}
-                      <td className="px-4 py-3.5">
+                      <td className="px-3.5 py-3.5">
                         <StatusBadge status={q.orderStatus} compact />
                       </td>
 
                       {/* Follow-up Status */}
-                      <td className="px-4 py-3.5">
+                      <td className="px-3.5 py-3.5">
                         <div>
                           <StatusBadge status={q.followUpStatus} compact />
                           {q.nextAction && (
-                            <p className="mt-1 text-[10px] font-medium text-slate-500 truncate max-w-[180px]" title={q.nextAction}>
+                            <p className="mt-1 text-[10px] font-medium text-slate-500 truncate max-w-[170px]" title={q.nextAction}>
                               <strong>Next:</strong> {q.nextAction}
                             </p>
                           )}
                         </div>
                       </td>
 
-                      {/* Next Follow-up Date + Highlighting */}
-                      <td className="px-4 py-3.5">
+                      {/* Next Follow-up Date */}
+                      <td className="px-3.5 py-3.5">
                         {q.nextFollowUpDate ? (
                           <div>
                             <span className="font-semibold text-slate-800">
@@ -1248,16 +1193,16 @@ export default function QuotationManagementPage() {
                         )}
                       </td>
 
-                      {/* Quotation Made By (Requested Last Column) */}
-                      <td className="px-4 py-3.5 bg-blue-50/30">
-                        <div className="flex items-center gap-1 text-slate-800 font-semibold">
-                          <User size={13} className="text-blue-500" />
+                      {/* Quotation Made By (LAST COLUMN as specifically requested) */}
+                      <td className="px-3.5 py-3.5 bg-blue-50/40 border-l border-blue-100">
+                        <div className="flex items-center gap-1 text-slate-900 font-bold">
+                          <User size={13} className="text-blue-600" />
                           <span>{q.quotationMadeBy || "—"}</span>
                         </div>
                       </td>
 
                       {/* Actions */}
-                      <td className="px-4 py-3.5 text-center">
+                      <td className="px-3.5 py-3.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           {/* Follow-up update button */}
                           <button
@@ -1319,10 +1264,10 @@ export default function QuotationManagementPage() {
             </div>
           )}
 
-          {/* Section 1: Quotation Master Info */}
+          {/* Section 1: Quotation Identification & FY */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              1. Quotation Identification & Engineer
+              1. Quotation Identification & Financial Year
             </h3>
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1335,21 +1280,27 @@ export default function QuotationManagementPage() {
                   {!isEditing && (
                     <button
                       type="button"
-                      onClick={generateNewNumber}
+                      onClick={() => {
+                        const num = computeNextQuotationNumber(formData.quotationDate);
+                        setFormData((prev) => ({ ...prev, quotationNumber: num }));
+                      }}
                       className="text-[10px] font-bold text-blue-600 hover:underline"
                     >
-                      Auto Generate
+                      Reset FY No
                     </button>
                   )}
                 </div>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. QT-2024-001"
+                  placeholder="e.g. QT/24-25/001"
                   value={formData.quotationNumber}
                   onChange={(e) => setFormData({ ...formData, quotationNumber: e.target.value })}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
                 />
+                <p className="mt-1 text-[10px] text-slate-500">
+                  FY: <strong>{getFinancialYearString(formData.quotationDate)}</strong> (Auto-formatted by financial year)
+                </p>
               </div>
 
               {/* Quotation Date */}
@@ -1361,7 +1312,18 @@ export default function QuotationManagementPage() {
                   type="date"
                   required
                   value={formData.quotationDate}
-                  onChange={(e) => setFormData({ ...formData, quotationDate: e.target.value })}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      quotationDate: newDate,
+                      // Automatically update FY quotation number if in create mode and number matches pattern
+                      quotationNumber:
+                        !isEditing && (!prev.quotationNumber || prev.quotationNumber.startsWith("QT/"))
+                          ? computeNextQuotationNumber(newDate)
+                          : prev.quotationNumber,
+                    }));
+                  }}
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
                 />
               </div>
@@ -1383,83 +1345,87 @@ export default function QuotationManagementPage() {
             </div>
           </div>
 
-          {/* Section 2: Customer & Region Details */}
+          {/* Section 2: Customer Name, Company Name, Mobile & Email (ALAG ALAG) */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              2. Customer, Region & Location
+              2. Customer & Company Details (Separate Fields)
             </h3>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Customer Name */}
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700">
-                  Customer / Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Tata Motors Ltd / BHEL"
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Region (Requested) */}
               <div>
                 <label className="text-xs font-bold text-slate-700">
-                  Region <span className="text-blue-600 font-semibold">(Required field)</span>
+                  Customer Name (Contact Person) <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={formData.region}
-                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
-                >
-                  {QUOTATION_REGIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative mt-1">
+                  <User className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Rajesh Sharma"
+                    value={formData.customerName}
+                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
 
-              {/* Location (Requested) */}
+              {/* Company Name */}
               <div>
-                <label className="text-xs font-bold text-slate-700">
-                  Location <span className="text-blue-600 font-semibold">(City / State)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Pune, Maharashtra"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
-                />
+                <label className="text-xs font-bold text-slate-700">Company Name / Organization</label>
+                <div className="relative mt-1">
+                  <Building className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input
+                    type="text"
+                    placeholder="e.g. Tata Motors Ltd / BHEL"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
 
-              {/* Customer Contact Details */}
-              <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700">Customer Contact Details</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Contact Person, Phone (+91 ...), Email"
-                  value={formData.customerContact}
-                  onChange={(e) => setFormData({ ...formData, customerContact: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
-                />
+              {/* Mobile No */}
+              <div>
+                <label className="text-xs font-bold text-slate-700">Mobile No / Contact</label>
+                <div className="relative mt-1">
+                  <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98201 12345"
+                    value={formData.customerPhone}
+                    onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label className="text-xs font-bold text-slate-700">Email Address</label>
+                <div className="relative mt-1">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                  <input
+                    type="email"
+                    placeholder="e.g. r.sharma@tatamotors.com"
+                    value={formData.customerEmail}
+                    onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Section 3: Product, Amount & Quotation Made By */}
+          {/* Section 3: Product & Commercials (QT Amount INR, Discount Amount INR, PO Amount INR) */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              3. Product & Commercials
+              3. Product & Commercial Amounts (in INR)
             </h3>
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {/* Product / Model */}
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
                 <label className="text-xs font-bold text-slate-700">
                   Product / Model <span className="text-red-500">*</span>
                 </label>
@@ -1473,10 +1439,10 @@ export default function QuotationManagementPage() {
                 />
               </div>
 
-              {/* Quotation Amount */}
+              {/* QT Amount (INR) */}
               <div>
-                <label className="text-xs font-bold text-slate-700">
-                  Quotation Amount (₹) <span className="text-red-500">*</span>
+                <label className="text-xs font-bold text-slate-800">
+                  QT Amount (INR) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -1495,16 +1461,105 @@ export default function QuotationManagementPage() {
                 />
                 {formData.quotationAmount !== "" && (
                   <p className="mt-1 text-[11px] font-bold text-emerald-600">
-                    Preview: {formatCurrency(Number(formData.quotationAmount))}
+                    Preview: {formatINR(Number(formData.quotationAmount))}
                   </p>
                 )}
               </div>
 
-              {/* Quotation Made By (Requested Last Column) */}
+              {/* Discount Amount (INR) - Non-mandatory */}
               <div>
-                <label className="text-xs font-bold text-blue-900">
-                  Quotation Made By <span className="text-blue-600 font-semibold">(Requested)</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Discount Amount (INR)</label>
+                  <span className="text-[10px] font-semibold text-slate-400">(Optional)</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00 (Optional)"
+                  value={formData.discountAmount}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      discountAmount: e.target.value === "" ? "" : Number(e.target.value),
+                    })
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                />
+                {formData.discountAmount !== "" && Number(formData.discountAmount) > 0 && (
+                  <p className="mt-1 text-[11px] font-bold text-rose-600">
+                    Discount: {formatINR(Number(formData.discountAmount))}
+                  </p>
+                )}
+              </div>
+
+              {/* PO Amount (INR) - Non-mandatory */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">PO Amount (INR)</label>
+                  <span className="text-[10px] font-semibold text-slate-400">(Optional)</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.00 (Optional)"
+                  value={formData.poAmount}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      poAmount: e.target.value === "" ? "" : Number(e.target.value),
+                    })
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                />
+                {formData.poAmount !== "" && Number(formData.poAmount) > 0 && (
+                  <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                    PO Value: {formatINR(Number(formData.poAmount))}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Region, Location & Quotation Made By */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              4. Region, Location & Creator
+            </h3>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {/* Region */}
+              <div>
+                <label className="text-xs font-bold text-slate-700">Region</label>
+                <select
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                >
+                  {QUOTATION_REGIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="text-xs font-bold text-slate-700">Location (City / State)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Pune, Maharashtra"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Quotation Made By */}
+              <div>
+                <label className="text-xs font-bold text-blue-900">Quotation Made By</label>
                 <input
                   type="text"
                   placeholder="e.g. Jyotika Sharma"
@@ -1513,7 +1568,16 @@ export default function QuotationManagementPage() {
                   className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
                 />
               </div>
+            </div>
+          </div>
 
+          {/* Section 5: Status & Follow-up Planning */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              5. Status & Follow-up Planning
+            </h3>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Order Status */}
               <div>
                 <label className="text-xs font-bold text-slate-700">Order Status</label>
@@ -1545,16 +1609,8 @@ export default function QuotationManagementPage() {
                   ))}
                 </select>
               </div>
-            </div>
-          </div>
 
-          {/* Section 4: Initial Follow-up Planning */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              4. Follow-up Planning & Next Action
-            </h3>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Next Follow-up Date */}
               <div>
                 <label className="text-xs font-bold text-slate-700">Next Follow-up Date</label>
                 <input
@@ -1565,6 +1621,7 @@ export default function QuotationManagementPage() {
                 />
               </div>
 
+              {/* Next Action Plan */}
               <div>
                 <label className="text-xs font-bold text-slate-700">Next Action Plan</label>
                 <input
@@ -1576,8 +1633,9 @@ export default function QuotationManagementPage() {
                 />
               </div>
 
+              {/* Initial Remarks */}
               <div className="sm:col-span-2">
-                <label className="text-xs font-bold text-slate-700">Initial Remarks / Notes</label>
+                <label className="text-xs font-bold text-slate-700">Follow-up Remarks / Notes</label>
                 <textarea
                   rows={2}
                   placeholder="Add any specific customer requirements, discount terms, or conversation notes..."
@@ -1619,10 +1677,13 @@ export default function QuotationManagementPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-bold text-slate-900">{followUpTarget.customerName}</p>
-                  <p className="text-[11px] text-slate-600">{followUpTarget.productModel}</p>
+                  {followUpTarget.companyName && (
+                    <p className="text-[11px] font-semibold text-slate-700">{followUpTarget.companyName}</p>
+                  )}
+                  <p className="text-[11px] text-slate-500">{followUpTarget.productModel}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-blue-700">{formatCurrency(followUpTarget.quotationAmount)}</p>
+                  <p className="text-sm font-black text-blue-700">{formatINR(followUpTarget.quotationAmount)}</p>
                   <div className="mt-0.5 flex items-center gap-1.5 justify-end">
                     <StatusBadge status={followUpTarget.orderStatus} compact />
                     <StatusBadge status={followUpTarget.followUpStatus} compact />
@@ -1726,7 +1787,6 @@ export default function QuotationManagementPage() {
               </div>
             </div>
 
-            {/* Note on general rules */}
             <p className="text-[11px] font-medium text-slate-500">
               💡 Follow-up updates append to the historical activity timeline without overwriting master quotation numbers or pricing.
             </p>
@@ -1764,6 +1824,9 @@ export default function QuotationManagementPage() {
                   {viewQuotation.quotationNumber}
                 </span>
                 <h3 className="text-xl font-black text-slate-900">{viewQuotation.customerName}</h3>
+                {viewQuotation.companyName && (
+                  <p className="text-xs font-bold text-slate-700">{viewQuotation.companyName}</p>
+                )}
                 <p className="text-xs text-slate-500">
                   Quotation Date: {formatDate(viewQuotation.quotationDate)}
                 </p>
@@ -1771,7 +1834,7 @@ export default function QuotationManagementPage() {
 
               <div className="flex flex-col items-start gap-1.5 sm:items-end">
                 <span className="text-2xl font-black text-slate-900">
-                  {formatCurrency(viewQuotation.quotationAmount)}
+                  {formatINR(viewQuotation.quotationAmount)}
                 </span>
                 <div className="flex items-center gap-1.5">
                   <StatusBadge status={viewQuotation.orderStatus} />
@@ -1780,37 +1843,82 @@ export default function QuotationManagementPage() {
               </div>
             </div>
 
-            {/* Grid of Attributes */}
+            {/* Separate Attributes Grid */}
             <div className="grid grid-cols-2 gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 sm:grid-cols-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Product / Model</span>
-                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.productModel}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Customer Name</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.customerName || "—"}</p>
               </div>
+
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sales Engineer</span>
-                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.salesEngineer}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Company Name</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.companyName || "—"}</p>
               </div>
+
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Region & Location</span>
-                <p className="mt-0.5 text-xs font-bold text-slate-800">
-                  {viewQuotation.region || "West"}{viewQuotation.location ? ` - ${viewQuotation.location}` : ""}
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mobile No</span>
+                <p className="mt-0.5 text-xs font-semibold text-slate-800">{viewQuotation.customerPhone || "—"}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email</span>
+                <p className="mt-0.5 text-xs font-semibold text-slate-800 truncate" title={viewQuotation.customerEmail || ""}>
+                  {viewQuotation.customerEmail || "—"}
                 </p>
               </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">QT Amount (INR)</span>
+                <p className="mt-0.5 text-xs font-black text-slate-900">{formatINR(viewQuotation.quotationAmount)}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Discount Amount (INR)</span>
+                <p className="mt-0.5 text-xs font-bold text-rose-600">
+                  {viewQuotation.discountAmount ? formatINR(viewQuotation.discountAmount) : "—"}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PO Amount (INR)</span>
+                <p className="mt-0.5 text-xs font-black text-emerald-700">
+                  {viewQuotation.poAmount ? formatINR(viewQuotation.poAmount) : "—"}
+                </p>
+              </div>
+
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Quotation Made By</span>
                 <p className="mt-0.5 text-xs font-black text-blue-900">{viewQuotation.quotationMadeBy || "—"}</p>
               </div>
-              <div className="col-span-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Customer Contact</span>
-                <p className="mt-0.5 text-xs font-semibold text-slate-700">{viewQuotation.customerContact || "—"}</p>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Product / Model</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.productModel}</p>
               </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sales Engineer</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.salesEngineer}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Region</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.region || "West"}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Location</span>
+                <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.location || "—"}</p>
+              </div>
+
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next Follow-up</span>
                 <p className="mt-0.5 text-xs font-bold text-slate-800">
                   {viewQuotation.nextFollowUpDate ? formatDate(viewQuotation.nextFollowUpDate) : "—"}
                 </p>
               </div>
-              <div>
+
+              <div className="col-span-3">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next Action</span>
                 <p className="mt-0.5 text-xs font-bold text-slate-800">{viewQuotation.nextAction || "—"}</p>
               </div>

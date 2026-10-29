@@ -72,6 +72,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
         quotationDate: body.quotationDate ? new Date(body.quotationDate) : existing.quotationDate,
         customerName:
           body.customerName !== undefined ? String(body.customerName).trim() : existing.customerName,
+        companyName:
+          body.companyName !== undefined ? (body.companyName ? String(body.companyName).trim() : null) : existing.companyName,
+        customerPhone:
+          body.customerPhone !== undefined ? (body.customerPhone ? String(body.customerPhone).trim() : null) : existing.customerPhone,
+        customerEmail:
+          body.customerEmail !== undefined ? (body.customerEmail ? String(body.customerEmail).trim() : null) : existing.customerEmail,
         salesEngineer:
           body.salesEngineer !== undefined
             ? String(body.salesEngineer).trim()
@@ -86,6 +92,14 @@ export async function PUT(request: NextRequest, { params }: Params) {
           body.quotationAmount !== undefined
             ? Number(body.quotationAmount)
             : existing.quotationAmount,
+        discountAmount:
+          body.discountAmount !== undefined
+            ? (body.discountAmount === "" ? 0 : Number(body.discountAmount))
+            : existing.discountAmount,
+        poAmount:
+          body.poAmount !== undefined
+            ? (body.poAmount === "" ? 0 : Number(body.poAmount))
+            : existing.poAmount,
         region: body.region !== undefined ? String(body.region).trim() : existing.region,
         location: body.location !== undefined ? String(body.location).trim() : existing.location,
         quotationMadeBy:

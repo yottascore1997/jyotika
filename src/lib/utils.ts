@@ -15,6 +15,29 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+export function formatINR(amount: number): string {
+  const num = toNumber(amount);
+  return `INR ${new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: 0,
+  }).format(num)}`;
+}
+
+export function getFinancialYearString(date: Date | string = new Date()): string {
+  const d = new Date(date);
+  const month = d.getMonth(); // 0 = Jan, 3 = Apr
+  const year = d.getFullYear();
+  const startYear = month >= 3 ? year : year - 1;
+  const startShort = String(startYear % 100).padStart(2, "0");
+  const endShort = String((startYear + 1) % 100).padStart(2, "0");
+  return `${startShort}-${endShort}`;
+}
+
+export function generateFinancialYearQuotationNumber(index: number, date: Date | string = new Date()): string {
+  const fy = getFinancialYearString(date);
+  const serial = String(index).padStart(3, "0");
+  return `QT/${fy}/${serial}`;
+}
+
 export function formatUsd(amount: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
